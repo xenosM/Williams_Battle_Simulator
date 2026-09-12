@@ -1,14 +1,15 @@
 package entity;
 
-import java.util.ArrayList;
-
 import entity.troops.Troop;
+import java.util.ArrayList;
 
 public class Team {
 
     int budget, winCount;
     String name;
     ArrayList<Troop> army; // ! Needs to be changed to group object later on
+
+    private static final int INITIAL_BUDGET = 500;
 
     public Team(String name) {
         budget = INITIAL_BUDGET;
@@ -38,5 +39,4 @@ public class Team {
         army.add(troop);
     }
 
-    private static final int INITIAL_BUDGET = 500;
 }
