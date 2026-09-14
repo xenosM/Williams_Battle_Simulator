@@ -4,7 +4,6 @@ import controller.states.*;
 import entity.*;
 import entity.interactables.*;
 import entity.troops.Troop;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -32,21 +31,29 @@ public class Round {
     private static final int TRAP_DAMAGE = 20;
 
     /* ---- PRIVATE VARIABLES ---- */
+    /*
+     * holds the information for all the entites on the board
+     */
+    private final GridContents<TileEffect> tileEffectBoard = new GridContents<>(ROW_COUNT, COLUMN_COUNT);
+    private final GridContents<Castle> castleBoard = new GridContents<>(ROW_COUNT, COLUMN_COUNT);
+    private final GridContents<Troop> troopBoard = new GridContents<>(ROW_COUNT, COLUMN_COUNT);
+
     private final Team teamA;
     private final Team teamB;
     private final Castle teamACastle;
     private final Castle teamBCastle;
-    private final List<TileEffect> tileEffects;
+
     private final Random random = new Random();
+
     private GameState currentState;
 
     /* ---- CONSTRUCTORS ---- */
     public Round(Team teamA, Team teamB) {
         this.teamA = teamA;
         this.teamB = teamB;
-        tileEffects = new ArrayList<>();
         teamACastle = new Castle(3, 0, 100);
         teamBCastle = new Castle(3, COLUMN_COUNT - 1, 100);
+        placeCastles();
     }
 
     /* ---- PUBLIC METHODS ---- */
@@ -66,13 +73,27 @@ public class Round {
      * Spawn all the tile effect that have been created
      */
     public void spawnTileEffects() {
-        tileEffects.clear(); // removes all the tile effects from previous round
+        tileEffectBoard.clear(); // removes all the tile effects from previous round
         spawnHills();
         spawnCoins();
         spawnTraps();
     }
 
+    public boolean isCellFree(int row, int column) {
+        return tileEffectBoard.isCellFree(row, column)
+                && castleBoard.isCellFree(row, column)
+                && troopBoard.isCellFree(row, column);
+    }
+
     /*---- PRIVATE METHODS ---- */
+    private void placeCastles() {
+        try {
+            castleBoard.place(teamACastle);
+            castleBoard.place(teamBCastle);
+        } catch (InvalidPlacementException e) {
+            throw new IllegalStateException("Castle positions are off the grid.", e);
+        }
+    }
 
     /*
      * hills spawn at random empty cells at the start of the round
@@ -139,43 +160,16 @@ public class Round {
      * PlaceState will use it later when the player picks the cell.
      */
     private void addTileEffect(TileEffect effect) throws InvalidPlacementException {
-        int row = effect.getRow();
-        int column = effect.getColumn();
-
-        if (row < 0 || row >= ROW_COUNT || column < 0 || column >= COLUMN_COUNT) {
+        if (!isCellFree(effect.getRow(), effect.getColumn())) {
             throw new InvalidPlacementException(
-                    "Cell " + row + "," + column + " is outside the battlefield.");
+                    "Cell " + effect.getRow() + "," + effect.getColumn() + " is already taken.");
         }
 
-        if (!isCellFree(row, column)) {
-            throw new InvalidPlacementException(
-                    "Cell " + row + "," + column + " is already taken.");
-        }
-
-        tileEffects.add(effect);
+        tileEffectBoard.place(effect);
     }
 
     private Troop.Team ownerOfHalf(int column) {
         return (column < COLUMN_COUNT / 2) ? Troop.Team.teamA : Troop.Team.teamB;
-    }
-
-    private boolean isCellFree(int row, int column) {
-        if (isSameCell(teamACastle.getRow(), teamACastle.getColumn(), row, column)
-                || isSameCell(teamBCastle.getRow(), teamBCastle.getColumn(), row, column)) {
-            return false;
-        }
-
-        for (TileEffect effect : tileEffects) {
-            if (effect.isAt(row, column)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private boolean isSameCell(int rowA, int columnA, int rowB, int columnB) {
-        return rowA == rowB && columnA == columnB;
     }
 
     /* ---- GETTER METHODS ---- */
@@ -196,7 +190,7 @@ public class Round {
     }
 
     public List<TileEffect> getTileEffects() {
-        return tileEffects;
+        return tileEffectBoard.getContents();
     }
 
     public GameState getCurrentState() {

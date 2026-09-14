@@ -1,8 +1,9 @@
 package entity.interactables;
 
+import entity.Positioned;
 import entity.troops.Troop;
 
-public abstract class TileEffect {
+public abstract class TileEffect implements Positioned {
     /* ---- PRIVATE VARIABLES ---- */
     private final int row;
     private final int column;
@@ -16,10 +17,12 @@ public abstract class TileEffect {
     }
 
     /* ---- GETTER METHODS ---- */
+    @Override
     public int getRow() {
         return row;
     }
 
+    @Override
     public int getColumn() {
         return column;
     }
@@ -29,6 +32,7 @@ public abstract class TileEffect {
     }
 
     /* ---- PUBLIC METHODS ---- */
+    @Override
     public boolean isAt(int row, int column) {
         return this.row == row && this.column == column;
     }

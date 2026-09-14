@@ -1,6 +1,8 @@
 package entity.troops;
 
-public class Troop {
+import entity.Positioned;
+
+public class Troop implements Positioned {
 
     /* ---- ENUMS ---- */
     public enum Team {
@@ -43,11 +45,18 @@ public class Troop {
         return health <= 0;
     }
 
+    @Override
+    public boolean isAt(int row, int column) {
+        return this.row == row && this.column == column;
+    }
+
     /* ---- GETTER METHODS ---- */
+    @Override
     public int getRow() {
         return row;
     }
 
+    @Override
     public int getColumn() {
         return column;
     }
