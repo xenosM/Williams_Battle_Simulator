@@ -4,6 +4,7 @@ import controller.states.*;
 import entity.*;
 import entity.interactables.*;
 import entity.troops.Troop;
+import entity.troops.TroopType;
 import java.util.List;
 import java.util.Random;
 
@@ -19,8 +20,8 @@ public class Round {
     /* ---- STATIC VARIABLES ---- */
 
     /* VARIABLES FOR GRID */
-    private static final int ROW_COUNT = 10;
-    private static final int COLUMN_COUNT = 16;
+    private static final int ROW_COUNT = 30;
+    private static final int COLUMN_COUNT = 30;
 
     /* VARIABLES FOR TILE EFFECT */
     private static final int HILL_COUNT = 4;
@@ -36,7 +37,6 @@ public class Round {
      */
     private final GridContents<TileEffect> tileEffectBoard = new GridContents<>(ROW_COUNT, COLUMN_COUNT);
     private final GridContents<Castle> castleBoard = new GridContents<>(ROW_COUNT, COLUMN_COUNT);
-    private final GridContents<Troop> troopBoard = new GridContents<>(ROW_COUNT, COLUMN_COUNT);
 
     private final Team teamA;
     private final Team teamB;
@@ -51,8 +51,8 @@ public class Round {
     public Round(Team teamA, Team teamB) {
         this.teamA = teamA;
         this.teamB = teamB;
-        teamACastle = new Castle(3, 0, 100);
-        teamBCastle = new Castle(3, COLUMN_COUNT - 1, 100);
+        teamACastle = new Castle(ROW_COUNT / 2, 0, 100);
+        teamBCastle = new Castle(ROW_COUNT / 2, COLUMN_COUNT - 1, 100);
         placeCastles();
     }
 
@@ -80,9 +80,59 @@ public class Round {
     }
 
     public boolean isCellFree(int row, int column) {
-        return tileEffectBoard.isCellFree(row, column)
-                && castleBoard.isCellFree(row, column)
-                && troopBoard.isCellFree(row, column);
+        return !isBlocked(row, column) && tileEffectBoard.isCellFree(row, column);
+    }
+
+    public boolean isPlacingTroops() {
+        return currentState instanceof PlaceState;
+    }
+
+    /* Validate everything before changing the army or charging the team. */
+    public Troop buyTroop(Troop.Team owner, TroopType type, int groupSize, int row, int column)
+            throws InvalidPlacementException {
+        if (!isPlacingTroops()) {
+            throw new InvalidPlacementException("Troops can only be bought during placement.");
+        }
+        if (owner == null || type == null) {
+            throw new InvalidPlacementException("Select a team and troop type first.");
+        }
+        if (!castleBoard.isWithinBounds(row, column)) {
+            throw new InvalidPlacementException("Choose a tile inside the battlefield.");
+        }
+        if (ownerOfHalf(column) != owner) {
+            throw new InvalidPlacementException("Place Team A on the left half and Team B on the right half.");
+        }
+        if (!isCellFree(row, column)) {
+            throw new InvalidPlacementException("That tile is occupied. Choose an empty tile.");
+        }
+
+        int cost;
+        try {
+            cost = type.getTotalCost(groupSize);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidPlacementException(e.getMessage());
+        }
+        Team team = owner == Troop.Team.teamA ? teamA : teamB;
+        if (cost > team.getBudget()) {
+            throw new InvalidPlacementException("Not enough gold: this group costs $" + cost
+                    + ", but the team has $" + team.getBudget() + ".");
+        }
+
+        Troop troop = type.createTroop(row, column, groupSize, owner);
+        team.spendBudget(cost);
+        team.addTroop(troop);
+        return troop;
+    }
+
+    public boolean canStartBattle() {
+        return isPlacingTroops() && !teamA.getArmy().isEmpty() && !teamB.getArmy().isEmpty();
+    }
+
+    public void startBattle() throws InvalidPlacementException {
+        if (!canStartBattle()) {
+            throw new InvalidPlacementException("Place at least one group for each team before starting battle.");
+        }
+        setCurrentState(new BattleState());
     }
 
     public boolean isBlocked(int row, int column) {
@@ -187,10 +237,7 @@ public class Round {
         }
     }
 
-    /*
-     * The single way anything gets onto the board. Random spawning uses it now;
-     * PlaceState will use it later when the player picks the cell.
-     */
+    /* Tile effects use the same occupancy check as troop purchases. */
     private void addTileEffect(TileEffect effect) throws InvalidPlacementException {
         if (!isCellFree(effect.getRow(), effect.getColumn())) {
             throw new InvalidPlacementException(

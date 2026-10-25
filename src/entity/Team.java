@@ -35,6 +35,13 @@ public class Team {
         budget += amount;
     }
 
+    public void spendBudget(int amount) {
+        if (amount <= 0 || amount > budget) {
+            throw new IllegalArgumentException("Spending must be positive and within the team's budget.");
+        }
+        budget -= amount;
+    }
+
     public void addTroop(Troop troop) {
         army.add(troop);
     }

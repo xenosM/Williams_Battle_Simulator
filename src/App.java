@@ -1,8 +1,8 @@
 import controller.*;
+import javax.swing.SwingUtilities;
 
 public class App {
     public static void main(String[] args) {
-        Session session = new Session();
-        session.start();
+        SwingUtilities.invokeLater(() -> new Session().start());
     }
 }

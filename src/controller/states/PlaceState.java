@@ -5,9 +5,7 @@ import controller.Round;
 public class PlaceState implements GameState {
     @Override
     public void update(Round round) {
-        // TEMPORARY: skips straight to battle.
-        // Real placement will wait for player input before handing over.
-        round.setCurrentState(new BattleState());
+        // Buying and placement continue until the player chooses Start Battle.
     }
 
     @Override

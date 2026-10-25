@@ -2,71 +2,73 @@ package view;
 
 import controller.Round;
 import entity.Castle;
-import entity.InvalidPlacementException;
 import entity.Team;
 import entity.interactables.Coin;
 import entity.interactables.Hill;
 import entity.interactables.TileEffect;
 import entity.interactables.Trap;
 import entity.troops.Troop;
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
+import java.io.File;
+import java.io.IOException;
+import java.util.Comparator;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
-import javax.swing.ImageIcon;
+import javax.imageio.ImageIO;
+import javax.swing.BorderFactory;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JViewport;
+import javax.swing.Scrollable;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 
-public class BattlefieldPanel extends JPanel {
+public class BattlefieldPanel extends JPanel implements Scrollable {
+    private static final int PADDING = 8;
+    private static final int SIDEBAR_GAP = 18;
+    private static final int SIDEBAR_WIDTH = 148;
+    private static final int MIN_TILE_SIZE = 30;
 
-    /* ---- STATIC VARIABLES ---- */
-
-    /* VARIABLES FOR GRID */
-    private static final int CELL_SIZE = 35;
-
-    /* VARIABLES FOR SIDEBAR */
-    private static final int SIDEBAR_WIDTH = 120;
-    private static final int SIDEBAR_GAP = 16;
-    private static final int SIDEBAR_PADDING = 12;
-    private static final int SIDEBAR_HEADER_HEIGHT = 34;
-
-    /* VARIABLES FOR COLOURS */
-    private static final Color BACKGROUND_COLOUR = new Color(235, 245, 235);
-    private static final Color SIDEBAR_FILL = new Color(250, 252, 250);
-    private static final Color SIDEBAR_BORDER = new Color(200, 210, 200);
-    private static final Color SIDEBAR_DIVIDER = new Color(225, 230, 225);
-    private static final Color LABEL_COLOUR = new Color(120, 125, 120);
-    private static final Color VALUE_COLOUR = new Color(50, 55, 50);
-    private static final Color TEAM_A_ACCENT = new Color(60, 90, 190);
-    private static final Color TEAM_B_ACCENT = new Color(190, 90, 30);
-    private static final Color HOVER_COLOUR = new Color(255, 255, 150, 110);
-
-    /* ---- PRIVATE VARIABLES ---- */
-    private Image troopASprite;
-    private Image troopBSprite;
-    private Image castleSprite;
-    private Image coinSprite;
-    private Image hillSprite;
-    private Image trapSprite;
+    private final Image troopASprite = sprite("Troop_A");
+    private final Image troopBSprite = sprite("Troop_B");
+    private final Image castleSprite = sprite("Castle");
+    private final Image coinSprite = sprite("Coin");
+    private final Image hillSprite = sprite("Hill");
+    private final Image trapSprite = sprite("Trap");
     private Round round;
-    // Cell currently under the mouse, so paintComponent can highlight it.
-    // -1 means the mouse isn't over a valid cell.
+    private Troop.Team placementTeam = Troop.Team.teamA;
+    private BiConsumer<Integer, Integer> placementHandler = (row, column) -> { };
     private int hoverRow = -1;
     private int hoverColumn = -1;
+    private boolean fitWholeBoard;
+    private JPanel battlefieldView;
 
-    /* ---- CONSTRUCTORS ---- */
     public BattlefieldPanel() {
-        setBackground(BACKGROUND_COLOUR);
-        setSprites();
-
+        setBackground(SimulationTheme.BACKGROUND);
+        setToolTipText("");
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                placeTroopAt(e.getX(), e.getY());
+                if (round != null && round.isPlacingTroops() && SwingUtilities.isLeftMouseButton(e)) {
+                    placementHandler.accept(rowFor(e.getY()), columnFor(e.getX()));
+                }
             }
 
             @Override
@@ -74,258 +76,409 @@ public class BattlefieldPanel extends JPanel {
                 clearHover();
             }
         });
-
         addMouseMotionListener(new MouseMotionAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
-                hoverRow = rowFor(e.getY());
-                hoverColumn = columnFor(e.getX());
-                repaint();
+                if (round != null) {
+                    hoverRow = rowFor(e.getY());
+                    hoverColumn = columnFor(e.getX());
+                    repaint();
+                }
+            }
+        });
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                clearHover();
             }
         });
     }
 
-    /* ---- OVERRIDES ---- */
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        if (round == null)
-            return;// ensures nth is drawn until round is created
-
-        int offsetX = getGridOffsetX();
-        int offsetY = getGridOffsetY();
-
-        drawGrid(g, offsetX, offsetY);
-        drawHover(g, offsetX, offsetY);
-        drawTileEffects(g, offsetX, offsetY);
-        drawCastles(g, offsetX, offsetY);
-        drawArmies(g, offsetX, offsetY);
-        drawSidebars(g, offsetX, offsetY);
-
-        round.render();
+    /* Keep team information fixed while the battlefield can scroll. */
+    public JPanel createView() {
+        battlefieldView = new JPanel(new BorderLayout(SIDEBAR_GAP, 0));
+        battlefieldView.setBackground(SimulationTheme.BACKGROUND);
+        battlefieldView.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+        battlefieldView.add(teamSummary(round.getTeamA(), round.getTeamACastle(), "TEAM A",
+                SimulationTheme.TEAM_A), BorderLayout.WEST);
+        battlefieldView.add(teamSummary(round.getTeamB(), round.getTeamBCastle(), "TEAM B",
+                SimulationTheme.TEAM_B), BorderLayout.EAST);
+        JScrollPane scrollPane = new JScrollPane(this);
+        scrollPane.setBorder(BorderFactory.createLineBorder(SimulationTheme.BORDER));
+        scrollPane.getViewport().setBackground(SimulationTheme.BACKGROUND);
+        battlefieldView.add(scrollPane, BorderLayout.CENTER);
+        SwingUtilities.invokeLater(this::centreView);
+        return battlefieldView;
     }
 
-    /* ---- PRIVATE METHODS ---- */
-    private void clearHover() {
-        hoverRow = -1;
-        hoverColumn = -1;
-        repaint();
+    private JPanel teamSummary(Team team, Castle castle, String title, Color accent) {
+        JPanel card = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                super.paintComponent(graphics);
+                Graphics2D g = (Graphics2D) graphics.create();
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                drawSidebar(g, 0, 0, getHeight() - 3, team, castle, title, accent);
+                g.dispose();
+            }
+        };
+        card.setOpaque(false);
+        card.setPreferredSize(new Dimension(SIDEBAR_WIDTH, 323));
+        JPanel column = new JPanel(new BorderLayout());
+        column.setOpaque(false);
+        column.add(card, BorderLayout.NORTH);
+        return column;
     }
 
-    private void setSprites() {
-        troopASprite = new ImageIcon("assets/Troop_A_Sprite.png").getImage();
-        troopBSprite = new ImageIcon("assets/Troop_B_Sprite.png").getImage();
-        castleSprite = new ImageIcon("assets/Castle_Sprite.png").getImage();
-        coinSprite = new ImageIcon("assets/Coin_Sprite.png").getImage();
-        hillSprite = new ImageIcon("assets/Hill_Sprite.png").getImage();
-        trapSprite = new ImageIcon("assets/Trap_Sprite.png").getImage();
-
+    public void setFitWholeBoard(boolean fit) {
+        fitWholeBoard = fit;
+        clearHover();
+        revalidate();
+        SwingUtilities.invokeLater(this::centreView);
     }
 
-    private void placeTroopAt(int mouseX, int mouseY) {
-        try {
-            // Placeholder placement logic: moves the first troop in Team
-            // A's army. Not tied to a selection UI yet.
-            moveFirstTroop(rowFor(mouseY), columnFor(mouseX));
+    private void centreView() {
+        if (getParent() instanceof JViewport viewport) {
+            viewport.setViewPosition(new Point(Math.max(0, (getWidth() - viewport.getWidth()) / 2),
+                    Math.max(0, (getHeight() - viewport.getHeight()) / 2)));
+        }
+    }
+
+    public void refresh() {
+        if (battlefieldView != null) {
+            battlefieldView.repaint();
+        } else {
             repaint();
-        } catch (InvalidPlacementException e) {
-            // Click missed the grid, or Team A has no troop to place yet
-            // (Session hasn't wired up real teams). Nothing to do.
         }
     }
 
-    private void moveFirstTroop(int row, int column) throws InvalidPlacementException {
-        if (!isWithinGrid(row, column)) {
-            throw new InvalidPlacementException("Cell " + row + "," + column + " is outside the battlefield.");
-        }
-
-        if (teamA().getArmy().isEmpty()) {
-            throw new InvalidPlacementException("Team A has no troop to place yet.");
-        }
-
-        teamA().getArmy().get(0).setPosition(row, column);
+    @Override
+    public Dimension getPreferredSize() {
+        return round == null ? new Dimension(800, 680)
+                : new Dimension(round.getColumnCount() * MIN_TILE_SIZE + 2 * PADDING,
+                        round.getRowCount() * MIN_TILE_SIZE + 2 * PADDING);
     }
 
-    // Converts a mouse position into the grid cell underneath it. Shared by
-    // the click handler and the hover highlight so both always agree on
-    // which cell the cursor is over.
+    @Override
+    public Dimension getPreferredScrollableViewportSize() {
+        return new Dimension(800, 680);
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportWidth() {
+        return fitWholeBoard || getParent() instanceof JViewport viewport
+                && viewport.getWidth() >= getPreferredSize().width;
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportHeight() {
+        return fitWholeBoard || getParent() instanceof JViewport viewport
+                && viewport.getHeight() >= getPreferredSize().height;
+    }
+
+    @Override
+    public int getScrollableUnitIncrement(Rectangle visible, int orientation, int direction) {
+        return orientation == SwingConstants.HORIZONTAL ? cellWidth() : cellHeight();
+    }
+
+    @Override
+    public int getScrollableBlockIncrement(Rectangle visible, int orientation, int direction) {
+        return orientation == SwingConstants.HORIZONTAL ? Math.max(cellWidth(), visible.width - cellWidth())
+                : Math.max(cellHeight(), visible.height - cellHeight());
+    }
+
+    /* Drawing and mouse input share these bounds, including after a resize. */
+    public Rectangle getGridBounds() {
+        if (round == null) {
+            return new Rectangle();
+        }
+        int availableWidth = Math.max(1, getWidth() - 2 * PADDING);
+        int availableHeight = Math.max(1, getHeight() - 2 * PADDING);
+        int width = Math.max(1, availableWidth / round.getColumnCount()) * round.getColumnCount();
+        int height = Math.max(1, availableHeight / round.getRowCount()) * round.getRowCount();
+        return new Rectangle((getWidth() - width) / 2, (getHeight() - height) / 2, width, height);
+    }
+
+    private int cellWidth() {
+        return getGridBounds().width / round.getColumnCount();
+    }
+
+    private int cellHeight() {
+        return getGridBounds().height / round.getRowCount();
+    }
+
+    public Rectangle getTileBounds(int row, int column) {
+        Rectangle board = getGridBounds();
+        int width = cellWidth();
+        int height = cellHeight();
+        return new Rectangle(board.x + column * width, board.y + row * height, width, height);
+    }
+
     private int columnFor(int mouseX) {
-        return (mouseX - getGridOffsetX()) / CELL_SIZE;
+        return Math.floorDiv(mouseX - getGridBounds().x, cellWidth());
     }
 
     private int rowFor(int mouseY) {
-        return (mouseY - getGridOffsetY()) / CELL_SIZE;
+        return Math.floorDiv(mouseY - getGridBounds().y, cellHeight());
     }
 
     private boolean isWithinGrid(int row, int column) {
         return row >= 0 && row < round.getRowCount() && column >= 0 && column < round.getColumnCount();
     }
 
-    /* METHODS FOR GRID LAYOUT */
-
-    private int getGridWidth() {
-        return round.getColumnCount() * CELL_SIZE;
-    }
-
-    private int getGridHeight() {
-        return round.getRowCount() * CELL_SIZE;
-    }
-
-    private int getGridOffsetX() {
-        int contentWidth = getGridWidth() + 2 * (SIDEBAR_WIDTH + SIDEBAR_GAP);
-        int contentX = (getWidth() - contentWidth) / 2;
-        return contentX + SIDEBAR_WIDTH + SIDEBAR_GAP;
-    }
-
-    private int getGridOffsetY() {
-        return (getHeight() - getGridHeight()) / 2;
-    }
-
-    /* METHODS FOR DRAWING THE BOARD */
-
-    private void drawGrid(Graphics g, int offsetX, int offsetY) {
-        g.setColor(Color.gray);
-
-        for (int row = 0; row < round.getRowCount(); ++row) {
-            for (int column = 0; column < round.getColumnCount(); ++column) {
-                int x = column * CELL_SIZE + offsetX;
-                int y = row * CELL_SIZE + offsetY;
-                g.drawRect(x, y, CELL_SIZE, CELL_SIZE);
-            }
-        }
-    }
-
-    /*
-     * Highlights the cell under the cursor. Drawn after the grid but before
-     * everything else so entities stay on top of it.
-     */
-    private void drawHover(Graphics g, int offsetX, int offsetY) {
-        if (!isWithinGrid(hoverRow, hoverColumn)) {
+    @Override
+    protected void paintComponent(Graphics graphics) {
+        super.paintComponent(graphics);
+        if (round == null) {
             return;
         }
-        g.setColor(HOVER_COLOUR);
-        g.fillRect(hoverColumn * CELL_SIZE + offsetX, hoverRow * CELL_SIZE + offsetY,
-                CELL_SIZE, CELL_SIZE);
-    }
-
-    // effects draw first so troops and stuff stay on top of them.
-    private void drawTileEffects(Graphics g, int offsetX, int offsetY) {
+        Graphics2D g = (Graphics2D) graphics.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        Rectangle board = getGridBounds();
+        drawGrid(g, board);
+        drawHover(g, board);
         for (TileEffect effect : round.getTileEffects()) {
-            drawTileEffect(g, effect, offsetX, offsetY);
+            drawTileEffect(g, board, effect);
+        }
+        drawCastle(g, board, round.getTeamACastle(), SimulationTheme.TEAM_A);
+        drawCastle(g, board, round.getTeamBCastle(), SimulationTheme.TEAM_B);
+        Stream.concat(round.getTeamA().getArmy().stream(), round.getTeamB().getArmy().stream())
+                .sorted(Comparator.comparingInt(Troop::getRow))
+                .forEach(troop -> drawTroop(g, board, troop));
+        round.render();
+        g.dispose();
+    }
+
+    private void drawGrid(Graphics2D g, Rectangle board) {
+        int width = cellWidth();
+        int height = cellHeight();
+        for (int row = 0; row < round.getRowCount(); row++) {
+            for (int column = 0; column < round.getColumnCount(); column++) {
+                boolean left = column < round.getColumnCount() / 2;
+                boolean alternate = (row + column) % 2 == 0;
+                g.setColor(left ? new Color(226, alternate ? 235 : 232, 224)
+                        : new Color(235, alternate ? 234 : 231, 220));
+                g.fillRect(board.x + column * width, board.y + row * height, width, height);
+            }
+        }
+        for (int column = 0; column <= round.getColumnCount(); column++) {
+            g.setColor(column % 5 == 0 ? new Color(176, 190, 176) : new Color(205, 214, 201));
+            int x = board.x + column * width;
+            g.drawLine(x, board.y, x, board.y + board.height);
+        }
+        for (int row = 0; row <= round.getRowCount(); row++) {
+            g.setColor(row % 5 == 0 ? new Color(176, 190, 176) : new Color(205, 214, 201));
+            int y = board.y + row * height;
+            g.drawLine(board.x, y, board.x + board.width, y);
+        }
+        g.setColor(new Color(148, 160, 137));
+        g.setStroke(new BasicStroke(2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f,
+                new float[] { 6f, 5f }, 0f));
+        int middle = board.x + board.width / 2;
+        g.drawLine(middle, board.y, middle, board.y + board.height);
+        g.setStroke(new BasicStroke(1f));
+        g.setColor(new Color(153, 170, 151));
+        g.drawRect(board.x, board.y, board.width, board.height);
+    }
+
+    private void drawHover(Graphics2D g, Rectangle board) {
+        if (!round.isPlacingTroops() || !isWithinGrid(hoverRow, hoverColumn)) {
+            return;
+        }
+        boolean ownHalf = (hoverColumn < round.getColumnCount() / 2) == (placementTeam == Troop.Team.teamA);
+        boolean valid = ownHalf && round.isCellFree(hoverRow, hoverColumn);
+        g.setColor(valid ? new Color(63, 127, 211, 100) : new Color(207, 72, 61, 110));
+        Rectangle tile = getTileBounds(hoverRow, hoverColumn);
+        g.fillRect(tile.x, tile.y, tile.width, tile.height);
+    }
+
+    private void drawTileEffect(Graphics2D g, Rectangle board, TileEffect effect) {
+        Image image = effect instanceof Hill ? hillSprite : effect instanceof Coin ? coinSprite
+                : effect instanceof Trap ? trapSprite : null;
+        if (image != null) {
+            drawSprite(g, board, effect.getRow(), effect.getColumn(), image);
         }
     }
 
-    private void drawCastles(Graphics g, int offsetX, int offsetY) {
-        drawCastle(g, round.getTeamACastle(), offsetX, offsetY);
-        drawCastle(g, round.getTeamBCastle(), offsetX, offsetY);
+    private void drawSprite(Graphics2D g, Rectangle board, int row, int column, Image image) {
+        Rectangle tile = getTileBounds(row, column);
+        int inset = Math.max(1, Math.min(tile.width, tile.height) / 15);
+        drawImageFitted(g, image, tile.x + tile.width / 2, tile.y + tile.height - inset,
+                Math.max(1, tile.width - 2 * inset), Math.max(1, tile.height - 2 * inset));
     }
 
-    private void drawArmies(Graphics g, int offsetX, int offsetY) {
-        Stream.concat(
-                        teamA().getArmy().stream(),
-                        teamB().getArmy().stream())
-                .forEach(troop -> drawTroop(g, troop, offsetX, offsetY));
-    }
-    private void drawSidebars(Graphics g, int offsetX, int offsetY) {
-        int leftX = offsetX - SIDEBAR_WIDTH - SIDEBAR_GAP;
-        int rightX = offsetX + getGridWidth() + SIDEBAR_GAP;
-        int height = getGridHeight();
-
-        drawSidebar(g, leftX, offsetY, height, teamA(), "Team A", TEAM_A_ACCENT);
-        drawSidebar(g, rightX, offsetY, height, teamB(), "Team B", TEAM_B_ACCENT);
+    private void drawImageFitted(Graphics2D g, Image image, int centreX, int bottomY, int maxWidth, int maxHeight) {
+        double scale = Math.min((double) maxWidth / image.getWidth(this),
+                (double) maxHeight / image.getHeight(this));
+        int width = Math.max(1, (int) Math.round(image.getWidth(this) * scale));
+        int height = Math.max(1, (int) Math.round(image.getHeight(this) * scale));
+        g.drawImage(image, centreX - width / 2, bottomY - height, width, height, this);
     }
 
-    /* METHODS FOR DRAWING INDIVIDUAL ENTITY */
-    private void drawCastle(Graphics g, Castle castle, int offsetX, int offsetY) {
-        int x = castle.getColumn() * CELL_SIZE + offsetX;
-        int y = castle.getRow() * CELL_SIZE + offsetY;
-
-        g.drawImage(castleSprite, x - 5, y - 5, CELL_SIZE + 10, CELL_SIZE + 10, this);
-    }
-
-    private void drawTileEffect(Graphics g, TileEffect effect, int offsetX, int offsetY) {
-        int x = effect.getColumn() * CELL_SIZE + offsetX;
-        int y = effect.getRow() * CELL_SIZE + offsetY;
-
-        if (effect instanceof Hill) {
-            g.drawImage(hillSprite, x - 4, y + 2, CELL_SIZE + 8, CELL_SIZE - 4, this);
-        } else if (effect instanceof Coin) {
-            g.drawImage(coinSprite, x + 8, y + 8, CELL_SIZE - 16, CELL_SIZE - 16, this);
-        } else if (effect instanceof Trap) {
-            g.drawImage(trapSprite, x + 5, y + 5, CELL_SIZE - 10, CELL_SIZE - 10, this);
-        }
-    }
-
-    private void drawTroop(Graphics g, Troop troop, int offsetX, int offsetY) {
-        int x = troop.getColumn() * CELL_SIZE + offsetX;
-        int y = troop.getRow() * CELL_SIZE + offsetY;
-
-        Image sprite = (troop.getTeam() == Troop.Team.teamA) ? troopASprite : troopBSprite;
-
-        g.drawImage(sprite, x - 12, y - 12, CELL_SIZE + 24, CELL_SIZE + 24, this);
-    }
-
-    /*
-     * One teams column. The header and budget sit at the top and
-     * the rest is left empty on purpose, for the stuff later on
-     */
-    private void drawSidebar(Graphics g, int x, int y, int height, Team team, String title, Color accent) {
-        g.setColor(SIDEBAR_FILL);
-        g.fillRect(x, y, SIDEBAR_WIDTH, height);
-
-        g.setColor(SIDEBAR_BORDER);
-        g.drawRect(x, y, SIDEBAR_WIDTH, height);
-
+    private void drawCastle(Graphics2D g, Rectangle board, Castle castle, Color accent) {
+        Rectangle tile = getTileBounds(castle.getRow(), castle.getColumn());
         g.setColor(accent);
-        g.fillRect(x, y, SIDEBAR_WIDTH, SIDEBAR_HEADER_HEIGHT);
-
-        g.setColor(Color.WHITE);
-        g.setFont(new Font("SansSerif", Font.BOLD, 15));
-        drawCentred(g, title, x, y + 22);
-
-        int budgetY = y + SIDEBAR_HEADER_HEIGHT + 30;
-
-        g.setColor(LABEL_COLOUR);
-        g.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        drawCentred(g, "BUDGET", x, budgetY);
-
-        g.setColor(VALUE_COLOUR);
-        g.setFont(new Font("SansSerif", Font.BOLD, 22));
-        drawCentred(g, "$" + team.getBudget(), x, budgetY + 28);
-
-        // Divider marking where future rows will start.
-        g.setColor(SIDEBAR_DIVIDER);
-        g.drawLine(x + SIDEBAR_PADDING, budgetY + 48,
-                x + SIDEBAR_WIDTH - SIDEBAR_PADDING, budgetY + 48);
+        g.fillRect(tile.x + 1, tile.y + 1, Math.max(1, tile.width - 2), Math.max(1, tile.height - 2));
+        drawSprite(g, board, castle.getRow(), castle.getColumn(), castleSprite);
     }
 
-    private void drawCentred(Graphics g, String text, int x, int baselineY) {
+    private void drawTroop(Graphics2D g, Rectangle board, Troop troop) {
+        Rectangle tile = getTileBounds(troop.getRow(), troop.getColumn());
+        Color accent = troop.getTeam() == Troop.Team.teamA ? SimulationTheme.TEAM_A : SimulationTheme.TEAM_B;
+        g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 55));
+        g.fillRect(tile.x + 1, tile.y + 1, Math.max(1, tile.width - 2), Math.max(1, tile.height - 2));
+        // Every group shows its count. Wider tiles also show the troop's initial.
+        String label = (tile.width >= 48 ? troop.getClass().getSimpleName().substring(0, 1) : "")
+                + troop.getGroupSize();
+        int fontSize = Math.min(10, Math.max(6, Math.min(tile.width, tile.height) / 3));
+        g.setFont(new Font("SansSerif", Font.BOLD, fontSize));
+        while (g.getFontMetrics().stringWidth(label) > tile.width - 4 && fontSize > 6) {
+            g.setFont(new Font("SansSerif", Font.BOLD, --fontSize));
+        }
         FontMetrics metrics = g.getFontMetrics();
-        int textX = x + (SIDEBAR_WIDTH - metrics.stringWidth(text)) / 2;
-        g.drawString(text, textX, baselineY);
+        int labelWidth = Math.min(tile.width - 2, metrics.stringWidth(label) + 4);
+        int labelHeight = Math.min(tile.height - 2, metrics.getHeight());
+        int inset = Math.max(1, Math.min(tile.width, tile.height) / 15);
+        int figureLeft = tile.x + inset;
+        int figureWidth = tile.width - 2 * inset;
+        boolean labelBesideFigure = figureWidth - labelWidth - 2 >= 8;
+        if (labelBesideFigure) {
+            figureLeft += labelWidth + 2;
+            figureWidth -= labelWidth + 2;
+        }
+        drawImageFitted(g, troop.getTeam() == Troop.Team.teamA ? troopASprite : troopBSprite,
+                figureLeft + figureWidth / 2, tile.y + tile.height - inset,
+                Math.max(1, figureWidth), Math.max(1, tile.height - 2 * inset));
+
+        int labelY = labelBesideFigure ? tile.y + 1 : tile.y + tile.height - labelHeight - 1;
+        Graphics2D badge = (Graphics2D) g.create();
+        badge.clipRect(tile.x + 1, tile.y + 1, Math.max(1, tile.width - 2), Math.max(1, tile.height - 2));
+        badge.setColor(accent);
+        badge.fillRect(tile.x + 1, labelY, labelWidth, labelHeight);
+        badge.setColor(Color.WHITE);
+        badge.drawString(label, tile.x + 3, labelY + metrics.getAscent());
+        badge.dispose();
     }
 
-    /* METHODS FOR ROUND ACCESS */
-
-    /*
-     * Both these functions gets the team instance from round (isolates the teams to
-     * round
-     */
-    private Team teamA() {
-        return round.getTeamA();
+    private void drawSidebar(Graphics2D g, int x, int y, int availableHeight, Team team, Castle castle,
+            String title, Color accent) {
+        int width = SIDEBAR_WIDTH;
+        int height = Math.min(availableHeight, 320);
+        g.setColor(new Color(221, 227, 233));
+        g.fillRoundRect(x, y + 3, width, height, 14, 14);
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(x, y, width, height, 14, 14);
+        g.setColor(accent);
+        g.fillRoundRect(x + 14, y + 16, width - 28, 30, 10, 10);
+        g.setFont(SimulationTheme.LABEL);
+        g.setColor(Color.WHITE);
+        centred(g, title, x, width, y + 36);
+        g.setColor(SimulationTheme.MUTED);
+        centred(g, "AVAILABLE GOLD", x, width, y + 73);
+        g.setColor(SimulationTheme.TEXT);
+        g.setFont(new Font("SansSerif", Font.BOLD, 27));
+        centred(g, "$" + team.getBudget(), x, width, y + 108);
+        g.setColor(SimulationTheme.BORDER);
+        g.drawLine(x + 16, y + 125, x + width - 16, y + 125);
+        long groups = team.getArmy().stream().filter(troop -> !troop.isDestroyed()).count();
+        int soldiers = team.getArmy().stream().mapToInt(Troop::getGroupSize).sum();
+        sidebarStat(g, "Groups", Long.toString(groups), x, y + 153, width);
+        sidebarStat(g, "Soldiers", Integer.toString(soldiers), x, y + 182, width);
+        sidebarStat(g, "Castle HP", Integer.toString(Math.max(0, castle.getHealth())), x, y + 211, width);
+        if (height >= 310) {
+            g.setColor(SimulationTheme.BORDER);
+            g.drawLine(x + 16, y + 232, x + width - 16, y + 232);
+            g.setFont(SimulationTheme.LABEL);
+            g.setColor(accent);
+            centred(g, team == round.getTeamA() ? "LEFT HALF" : "RIGHT HALF", x, width, y + 259);
+            g.setFont(new Font("SansSerif", Font.PLAIN, 11));
+            g.setColor(SimulationTheme.MUTED);
+            centred(g, "I / A / C / P", x, width, y + 283);
+            centred(g, "Hover for group details", x, width, y + 301);
+        }
     }
 
-    private Team teamB() {
-        return round.getTeamB();
+    private void sidebarStat(Graphics2D g, String label, String value, int x, int baseline, int width) {
+        g.setFont(SimulationTheme.BODY);
+        g.setColor(SimulationTheme.MUTED);
+        g.drawString(label, x + 16, baseline);
+        g.setFont(new Font("SansSerif", Font.BOLD, 13));
+        g.setColor(SimulationTheme.TEXT);
+        g.drawString(value, x + width - 16 - g.getFontMetrics().stringWidth(value), baseline);
     }
 
-    private int budgetOf(entity.Team team) {
-        return (team == null) ? 0 : team.getBudget();
+    private void centred(Graphics2D g, String text, int x, int width, int baseline) {
+        FontMetrics metrics = g.getFontMetrics();
+        g.drawString(text, x + (width - metrics.stringWidth(text)) / 2, baseline);
     }
 
-    /* ---- SETTER METHODS ---- */
+    @Override
+    public String getToolTipText(MouseEvent e) {
+        if (round == null) {
+            return null;
+        }
+        int row = rowFor(e.getY());
+        int column = columnFor(e.getX());
+        if (!isWithinGrid(row, column)) {
+            return null;
+        }
+        Troop troop = Stream.concat(round.getTeamA().getArmy().stream(), round.getTeamB().getArmy().stream())
+                .filter(group -> group.isAt(row, column)).findFirst().orElse(null);
+        if (troop != null) {
+            return troop.getClass().getSimpleName() + " | "
+                    + (troop.getTeam() == Troop.Team.teamA ? "Team A" : "Team B")
+                    + " | Soldiers: " + troop.getGroupSize() + " | HP: " + troop.getGroupHealth()
+                    + "/" + troop.getMaxHealth();
+        }
+        return "Row " + (row + 1) + ", column " + (column + 1);
+    }
+
+    private Image sprite(String name) {
+        File file = new File("assets/" + name + "_Sprite.png");
+        try {
+            BufferedImage image = ImageIO.read(file);
+            if (image == null) {
+                throw new IOException("Unsupported image format");
+            }
+            // Ignore transparent padding when scaling. The original PNG is left untouched.
+            int left = image.getWidth();
+            int top = image.getHeight();
+            int right = -1;
+            int bottom = -1;
+            for (int y = 0; y < image.getHeight(); y++) {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    if ((image.getRGB(x, y) >>> 24) > 16) {
+                        left = Math.min(left, x);
+                        top = Math.min(top, y);
+                        right = Math.max(right, x);
+                        bottom = Math.max(bottom, y);
+                    }
+                }
+            }
+            return right < left ? image : image.getSubimage(left, top, right - left + 1, bottom - top + 1);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot load sprite: " + file + ". Run from the project root.", e);
+        }
+    }
+
+    private void clearHover() {
+        hoverRow = -1;
+        hoverColumn = -1;
+        repaint();
+    }
 
     public void setRound(Round round) {
         this.round = round;
+    }
+
+    public void setPlacementHandler(BiConsumer<Integer, Integer> handler) {
+        this.placementHandler = handler;
+    }
+
+    public void setPlacementTeam(Troop.Team team) {
+        this.placementTeam = team;
+        repaint();
     }
 }
