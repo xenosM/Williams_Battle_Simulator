@@ -38,19 +38,17 @@ public class BattleState implements GameState {
         Positioned target = troop.getTarget();
 
         //Does nothing if there is no target or target is out of range
-        if(target == null || !isInRange(troop,target)){
+        if (target == null || !isInRange(troop, target)) {
             return;
         }
-        if(troop instanceof Attacker attacker){
+        if (troop instanceof Attacker attacker) {
             attacker.attack();
         }
-        if(troop instanceof  Healer healer){
+        if (troop instanceof Healer healer) {
             healer.heal();
         }
     }
 
-    private void attackTarget(Attacker troop){
-    }
     /*  TURN BUILDING LOGIC*/
     private List<Troop> buildTurnOrder(Round round) {
         //Randomly chooses a team to go first in case of a tie during comparison

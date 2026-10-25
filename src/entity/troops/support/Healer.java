@@ -18,6 +18,8 @@ public abstract class Healer extends Support {
 
     /* ---- PUBLIC METHODS ---- */
     public void heal() {
+
+        System.out.println(target + "healed");
         this.target.beHealed(multipliedHealAmount());
     }
 

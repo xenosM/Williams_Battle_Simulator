@@ -73,8 +73,13 @@ public abstract class Troop implements Damageable {
         return stats.speed();
     }
 
-    public int getAttackSpeed(){return stats.atkSpeed();}
-    public int getRange(){return stats.attackRange();}
+    public int getAttackSpeed() {
+        return stats.atkSpeed();
+    }
+
+    public int getRange() {
+        return stats.attackRange();
+    }
 
     public int getInitialGroupSize() {
         return initialGroupSize;

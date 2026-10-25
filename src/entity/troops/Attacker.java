@@ -23,7 +23,9 @@ public abstract class Attacker extends Troop implements Healable {
     }
 
     public void attack() {
+        System.out.println(target + "attacked");
         this.target.takeDamage(getAttack()); // attack is proportional to the group size
+        if(target.isDestroyed()) System.out.println(target + "dead");
     }
 
     /* ---- GETTER METHODS ---- */
