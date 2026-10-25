@@ -9,7 +9,7 @@ import view.*;
 
 public class Session {
     /* ---- STATIC VARIABLES ---- */
-    private static final int TICK_DURATION = 300;
+    private static final int TICK_DURATION = 1000;
     private static final int WINDOW_WIDTH = 900;
     private static final int WINDOW_HEIGHT = 500;
 

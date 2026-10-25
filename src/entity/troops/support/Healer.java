@@ -9,14 +9,16 @@ import entity.troops.Support;
  */
 public abstract class Healer extends Support {
 
+
+    private Healable target;
     /* ---- CONSTRUCTORS ---- */
     public Healer(int row, int column, Stats stats, int initialGroupSize, Team team) {
         super(row, column, stats, initialGroupSize, team);
     }
 
     /* ---- PUBLIC METHODS ---- */
-    public void heal(Healable target) {
-        target.beHealed(multipliedHealAmount());
+    public void heal() {
+        this.target.beHealed(multipliedHealAmount());
     }
 
     /* ---- PRIVATE METHODS ---- */
@@ -28,5 +30,12 @@ public abstract class Healer extends Support {
     /* ---- GETTER METHODS ---- */
     public int getHealAmount() {
         return stats.healAmount();
+    }
+    public Healable getTarget(){
+        return  target;
+    }
+    /* ---- SETTER METHODS ---- */
+    public void setTarget(Healable target){
+        this.target=target;
     }
 }

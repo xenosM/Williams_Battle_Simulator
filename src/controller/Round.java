@@ -94,6 +94,9 @@ public class Round {
     public Team getEnemyTeam(Troop troop) {
         return troop.getTeam() == Troop.Team.teamA ? teamB : teamA;
     }
+    public Team getOwnTeam(Troop troop){
+        return troop.getTeam() == Troop.Team.teamA ? teamA : teamB;
+    }
 
     public Castle getEnemyCastle(Troop troop) {
         return troop.getTeam() == Troop.Team.teamA ? teamBCastle : teamACastle;

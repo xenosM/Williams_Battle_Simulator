@@ -2,11 +2,14 @@ package entity.troops;
 
 import entity.Damageable;
 
+import java.util.Optional;
+
 /*
  * Base class for attacking troop types.
  * Melee and ranged troop classes extend this.
  */
 public abstract class Attacker extends Troop implements Healable {
+    private Damageable target;
 
     /* ---- CONSTRUCTORS ---- */
     public Attacker(int row, int column, Stats stats, int initialGroupSize, Team team) {
@@ -19,8 +22,8 @@ public abstract class Attacker extends Troop implements Healable {
         groupHealth = Math.min(groupHealth + healAmount, getMaxHealth());
     }
 
-    public void attack(Damageable target) {
-        target.takeDamage(getAttack()); // attack is proportional to the group size
+    public void attack() {
+        this.target.takeDamage(getAttack()); // attack is proportional to the group size
     }
 
     /* ---- GETTER METHODS ---- */
@@ -31,4 +34,14 @@ public abstract class Attacker extends Troop implements Healable {
     public int getRange() {
         return stats.attackRange();
     }
+
+    public Damageable getTarget() {
+        return target;
+    }
+
+    /* ---- SETTER METHODS ---- */
+    public void setTarget(Damageable target) {
+        this.target = target;
+    }
+
 }

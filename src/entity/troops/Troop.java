@@ -1,6 +1,7 @@
 package entity.troops;
 
 import entity.Damageable;
+import entity.Positioned;
 
 public abstract class Troop implements Damageable {
 
@@ -72,6 +73,9 @@ public abstract class Troop implements Damageable {
         return stats.speed();
     }
 
+    public int getAttackSpeed(){return stats.atkSpeed();}
+    public int getRange(){return stats.attackRange();}
+
     public int getInitialGroupSize() {
         return initialGroupSize;
     }
@@ -84,9 +88,13 @@ public abstract class Troop implements Damageable {
         return stats;
     }
 
+    public abstract Positioned getTarget();
+
     public int getGroupSize() {
-        // (baseHealth - 1) is an offset so the last soldier is still counted,
-        // since integer division rounds down
+        /*
+        (baseHealth - 1) is an offset so the last soldier is still counted,
+        as integer division rounds down
+         */
         return (groupHealth + (stats.baseHealth() - 1)) / stats.baseHealth();
     }
 
