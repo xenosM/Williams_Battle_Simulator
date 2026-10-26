@@ -2,6 +2,9 @@ package controller;
 
 import entity.*;
 import entity.troops.melee.Infantry;
+import entity.troops.melee.Cavalry;
+import entity.troops.ranged.Archer;
+import entity.troops.support.Priest;
 import entity.troops.Troop;
 import javax.swing.JFrame;
 import javax.swing.Timer;
@@ -82,9 +85,14 @@ public class Session {
 
     /* ---- TEMPORARY METHOD ---- */
     private void setTemporaryTroops() {
-        teamA.addTroop(new Infantry(2, 2, 10, Troop.Team.teamA));
-        teamA.addTroop(new Infantry(9, 2, 10, Troop.Team.teamA));
-        teamB.addTroop(new Infantry(2, 11, 10, Troop.Team.teamB));
-        teamB.addTroop(new Infantry(6, 11, 10, Troop.Team.teamB));
-    }
+    teamA.addTroop(new Infantry(1, 2, 10, Troop.Team.teamA));
+    teamA.addTroop(new Archer(3, 2, 10, Troop.Team.teamA));
+    teamA.addTroop(new Cavalry(5, 2, 10, Troop.Team.teamA));
+    teamA.addTroop(new Priest(7, 2, 10, Troop.Team.teamA));
+
+    teamB.addTroop(new Infantry(1, 13, 10, Troop.Team.teamB));
+    teamB.addTroop(new Archer(3, 13, 10, Troop.Team.teamB));
+    teamB.addTroop(new Cavalry(5, 13, 10, Troop.Team.teamB));
+    teamB.addTroop(new Priest(7, 13, 10, Troop.Team.teamB));
+}
 }

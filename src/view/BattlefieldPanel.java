@@ -10,6 +10,10 @@ import entity.interactables.Hill;
 import entity.interactables.TileEffect;
 import entity.interactables.Trap;
 import entity.troops.Troop;
+import entity.troops.melee.Cavalry;
+import entity.troops.melee.Infantry;
+import entity.troops.ranged.Archer;
+import entity.troops.support.Priest;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -47,8 +51,14 @@ public class BattlefieldPanel extends JPanel {
     private static final Color HOVER_COLOUR = new Color(255, 255, 150, 110);
 
     /* ---- PRIVATE VARIABLES ---- */
-    private Image troopASprite;
-    private Image troopBSprite;
+    private Image infantryASprite;
+    private Image infantryBSprite;
+    private Image archerASprite;
+    private Image archerBSprite;
+    private Image cavalryASprite;
+    private Image cavalryBSprite;
+    private Image priestASprite;
+    private Image priestBSprite;
     private Image castleSprite;
     private Image coinSprite;
     private Image hillSprite;
@@ -118,8 +128,14 @@ public class BattlefieldPanel extends JPanel {
     }
 
     private void setSprites() {
-        troopASprite = new ImageIcon("assets/Troop_A_Sprite.png").getImage();
-        troopBSprite = new ImageIcon("assets/Troop_B_Sprite.png").getImage();
+        infantryASprite = new ImageIcon("assets/Infantry_A_Sprite.png").getImage();
+        infantryBSprite = new ImageIcon("assets/Infantry_B_Sprite.png").getImage();
+        archerASprite = new ImageIcon("assets/Archer_A_Sprite.png").getImage();
+        archerBSprite = new ImageIcon("assets/Archer_B_Sprite.png").getImage();
+        cavalryASprite = new ImageIcon("assets/Cavalry_A_Sprite.png").getImage();
+        cavalryBSprite = new ImageIcon("assets/Cavalry_B_Sprite.png").getImage();
+        priestASprite = new ImageIcon("assets/Priest_A_Sprite.png").getImage();
+        priestBSprite = new ImageIcon("assets/Priest_B_Sprite.png").getImage();
         castleSprite = new ImageIcon("assets/Castle_Sprite.png").getImage();
         coinSprite = new ImageIcon("assets/Coin_Sprite.png").getImage();
         hillSprite = new ImageIcon("assets/Hill_Sprite.png").getImage();
@@ -231,6 +247,7 @@ public class BattlefieldPanel extends JPanel {
                         teamB().getArmy().stream())
                 .forEach(troop -> drawTroop(g, troop, offsetX, offsetY));
     }
+
     private void drawSidebars(Graphics g, int offsetX, int offsetY) {
         int leftX = offsetX - SIDEBAR_WIDTH - SIDEBAR_GAP;
         int rightX = offsetX + getGridWidth() + SIDEBAR_GAP;
@@ -265,9 +282,31 @@ public class BattlefieldPanel extends JPanel {
         int x = troop.getColumn() * CELL_SIZE + offsetX;
         int y = troop.getRow() * CELL_SIZE + offsetY;
 
-        Image sprite = (troop.getTeam() == Troop.Team.teamA) ? troopASprite : troopBSprite;
+        Image sprite = getTroopSprite(troop);
 
-        g.drawImage(sprite, x - 12, y - 12, CELL_SIZE + 24, CELL_SIZE + 24, this);
+        if (troop instanceof Cavalry) {
+            g.drawImage(sprite, x - 7, y - 5, CELL_SIZE + 14, CELL_SIZE + 10, this);
+        } else if (troop instanceof Archer || troop instanceof Priest) {
+            g.drawImage(sprite, x - 3, y - 4, CELL_SIZE + 7, CELL_SIZE + 7, this);
+        } else {
+            g.drawImage(sprite, x - 12, y - 12, CELL_SIZE + 24, CELL_SIZE + 24, this);
+        }
+    }
+
+    private Image getTroopSprite(Troop troop) {
+        boolean isTeamA = troop.getTeam() == Troop.Team.teamA;
+
+        if (troop instanceof Cavalry) {
+            return isTeamA ? cavalryASprite : cavalryBSprite;
+        } else if (troop instanceof Archer) {
+            return isTeamA ? archerASprite : archerBSprite;
+        } else if (troop instanceof Priest) {
+            return isTeamA ? priestASprite : priestBSprite;
+        } else if (troop instanceof Infantry) {
+            return isTeamA ? infantryASprite : infantryBSprite;
+        }
+
+        return isTeamA ? infantryASprite : infantryBSprite;
     }
 
     /*
