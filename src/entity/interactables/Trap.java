@@ -1,6 +1,7 @@
 package entity.interactables;
 
 import entity.troops.Troop;
+import java.util.Optional;
 
 // Damages the first enemy troop to enter the cell, then is spent.
 
@@ -26,18 +27,21 @@ public class Trap extends TileEffect {
 
     /* ---- OVERRIDES ---- */
     @Override
-    public void onEnter(Troop troop) {
+    public Optional<TileEffectEvent> onEnter(Troop troop) {
         if (isTriggered) {
-            return;
+            return Optional.empty();
         }
 
         // Friendly troops walk over their own team's traps safely.
         if (troop.getTeam() == getOwner()) {
-            return;
+            return Optional.empty();
         }
 
         troop.takeDamage(damage);
         isTriggered = true;
+
+        return Optional.of(TileEffectEvent.of(
+                this, troop, troop.getTeam() + " walked into a trap (-" + damage + " dmg)"));
     }
 
     @Override

@@ -1,6 +1,7 @@
 package entity.interactables;
 
 import entity.troops.Troop;
+import java.util.Optional;
 
 //hill gets genrerated on the map, then give damage bonus to the team that holds it.
 
@@ -33,12 +34,28 @@ public class Hill extends TileEffect {
     }
 
     /* ---- OVERRIDES ---- */
+
+    /*
+     * The bonus only applies to the team that claimed the hill, and only while
+     * one of their troops is standing on it. Nothing has to be undone when the
+     * troop leaves, because the bonus is read from the cell at the moment of
+     * the attack rather than written onto the troop.
+     */
     @Override
-    public void onEnter(Troop troop) {
-        // first team to arrive keeps it for the rest of the round.
-        if (holder == null) {
-            holder = troop.getTeam();
+    public int damageBonusFor(Troop troop) {
+        return (holder == troop.getTeam()) ? damageBonus : 0;
+    }
+
+    @Override
+    public Optional<TileEffectEvent> onEnter(Troop troop) {
+        if (holder != null) {
+            return Optional.empty(); // first team to arrive keeps it for the round
         }
+
+        holder = troop.getTeam();
+
+        return Optional.of(TileEffectEvent.of(
+                this, troop, troop.getTeam() + " took the high ground (+" + damageBonus + " dmg)"));
     }
 
     @Override

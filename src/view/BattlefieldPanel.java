@@ -1,5 +1,6 @@
 package view;
 
+import controller.EventLogListener;
 import controller.Round;
 import entity.Castle;
 import entity.InvalidPlacementException;
@@ -53,6 +54,9 @@ public class BattlefieldPanel extends JPanel {
     private Image hillSprite;
     private Image trapSprite;
     private Round round;
+    // Filled in by Session. The panel only reads it, so the log can grow
+    // without the panel knowing anything about tile effects.
+    private EventLogListener eventLog;
     // Cell currently under the mouse, so paintComponent can highlight it.
     // -1 means the mouse isn't over a valid cell.
     private int hoverRow = -1;
@@ -101,6 +105,7 @@ public class BattlefieldPanel extends JPanel {
         drawCastles(g, offsetX, offsetY);
         drawArmies(g, offsetX, offsetY);
         drawSidebars(g, offsetX, offsetY);
+        drawLatestEvent(g, offsetX, offsetY);
 
         round.render();
     }
@@ -323,9 +328,28 @@ public class BattlefieldPanel extends JPanel {
         return (team == null) ? 0 : team.getBudget();
     }
 
+    /*
+     * The most recent thing a tile effect did, printed under the grid. The
+     * panel never computes this - it just shows whatever the listener last
+     * recorded.
+     */
+    private void drawLatestEvent(Graphics g, int offsetX, int offsetY) {
+        if (eventLog == null || eventLog.getLatest().isEmpty()) {
+            return;
+        }
+
+        g.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        g.setColor(LABEL_COLOUR);
+        g.drawString(eventLog.getLatest(), offsetX, offsetY + getGridHeight() + 18);
+    }
+
     /* ---- SETTER METHODS ---- */
 
     public void setRound(Round round) {
         this.round = round;
+    }
+
+    public void setEventLog(EventLogListener eventLog) {
+        this.eventLog = eventLog;
     }
 }

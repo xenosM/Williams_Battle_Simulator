@@ -21,6 +21,9 @@ public class Session {
     private Round round;
     private Timer timer;
 
+    // Survives between rounds so the log is not lost when a new Round starts.
+    private final EventLogListener eventLog = new EventLogListener();
+
     /* ---- CONSTRUCTORS ---- */
     public Session() {
         teamA = new Team("teamA");
@@ -55,7 +58,13 @@ public class Session {
      */
     private void startRound() {
         round = new Round(teamA, teamB);
+
+        // A second listener alongside the budget one. Round fires once and
+        // both react, without either knowing the other is registered.
+        round.addTileEffectListener(eventLog);
+
         panel.setRound(round);
+        panel.setEventLog(eventLog);
         round.start();
     }
 
