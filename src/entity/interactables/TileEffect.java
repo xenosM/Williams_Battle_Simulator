@@ -2,6 +2,7 @@ package entity.interactables;
 
 import entity.Positioned;
 import entity.troops.Troop;
+import java.util.Optional;
 
 public abstract class TileEffect implements Positioned {
     /* ---- PRIVATE VARIABLES ---- */
@@ -37,13 +38,29 @@ public abstract class TileEffect implements Positioned {
         return this.row == row && this.column == column;
     }
 
+    /*
+     * Extra damage this effect grants to a troop standing on it. Most effects
+     * grant none, so the default is zero and only Hill overrides it. Doing it
+     * this way keeps the combat code free of checks for which effect it is.
+     */
+    public int damageBonusFor(Troop troop) {
+        return 0;
+    }
+
     /* ---- ABSTRACT METHODS ---- */
 
-    // called when a troop moves onto x cel
-    public abstract void onEnter(Troop troop);
+    /*
+     * Called when a troop moves onto this cell.
+     *
+     * Returns an event describing what happened, or empty when nothing did -
+     * a spent trap, a coin already taken, a troop walking over its own team's
+     * trap. Returning the event rather than acting directly is what lets Round
+     * notify its listeners only on real changes.
+     */
+    public abstract Optional<TileEffectEvent> onEnter(Troop troop);
 
     // true once the effect is spent and should be removed
-    // hills always return false, traps will return true after firing.
+    // hills always return false, traps return true after firing.
     public abstract boolean isConsumed();
 
 }

@@ -22,10 +22,17 @@ public abstract class Attacker extends Troop implements Healable {
         groupHealth = Math.min(groupHealth + healAmount, getMaxHealth());
     }
 
+    /*
+     * damageBonus comes from whatever the attacker happens to be standing on -
+     * currently a hill held by its own team. It is passed in rather than
+     * stored so nothing has to be cleared when the troop moves off.
+     */
+    public void attack(int damageBonus) {
+        this.target.takeDamage(getAttack() + damageBonus); // attack is proportional to the group size
+    }
+
     public void attack() {
-        System.out.println(target + "attacked");
-        this.target.takeDamage(getAttack()); // attack is proportional to the group size
-        if(target.isDestroyed()) System.out.println(target + "dead");
+        attack(0);
     }
 
     /* ---- GETTER METHODS ---- */
