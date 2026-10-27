@@ -164,6 +164,13 @@ public class TroopPurchasePanel extends JPanel {
         battlefield.refresh();
     }
 
+    public void refreshState() {
+        refreshQuote();
+        if (round.isGameOver()) {
+            showMessage("Game over. Restart to build new armies.", false);
+        }
+    }
+
     private void refreshQuote() {
         boolean placing = round.isPlacingTroops();
         teamSelector.setEnabled(placing);

@@ -1,6 +1,8 @@
 package controller;
 
-import entity.*;
+import controller.states.RoundOverState;
+import entity.Team;
+import entity.troops.Troop;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.GraphicsEnvironment;
@@ -17,27 +19,40 @@ public class Session {
     private static final int BATTLEFIELD_HEIGHT = 680;
 
     /* ---- PRIVATE VARIABLES ---- */
-    private final Team teamA;
-    private final Team teamB;
-
+    private JFrame frame;
     private BattlefieldPanel panel;
+    private TroopPurchasePanel purchasePanel;
     private Round round;
     private Timer timer;
 
-    // Survives between rounds so the log is not lost when a new Round starts.
-    private final EventLogListener eventLog = new EventLogListener();
+    private EventLogListener eventLog;
 
     /* ---- CONSTRUCTORS ---- */
     public Session() {
-        teamA = new Team("teamA");
-        teamB = new Team("teamB");
+        startRound();
     }
 
     /* ---- PUBLIC METHODS ---- */
     public void start() {
-        startRound();
         setUpWindow();
         startTimer();
+    }
+
+    public Round getRound() {
+        return round;
+    }
+
+    public void restart() {
+        if (timer != null) {
+            timer.stop();
+        }
+        startRound();
+        if (frame != null) {
+            frame.getGlassPane().setVisible(false);
+            frame.getRootPane().setDefaultButton(null);
+            setUpRoundView();
+            timer.start();
+        }
     }
 
     /* ---- PRIVATE METHODS ---- */
@@ -45,15 +60,8 @@ public class Session {
      * Configures the jframe that will be shown on screen
      */
     private void setUpWindow() {
-        panel = new BattlefieldPanel();
-        panel.setRound(round);
-        panel.setEventLog(eventLog);
-        JPanel battlefieldView = panel.createView();
-        battlefieldView.setPreferredSize(new Dimension(WINDOW_WIDTH, BATTLEFIELD_HEIGHT));
-
-        JFrame frame = new JFrame("The Williams - Battle Simulator");
-        frame.add(battlefieldView, BorderLayout.CENTER);
-        frame.add(new TroopPurchasePanel(round, panel), BorderLayout.SOUTH);
+        frame = new JFrame("The Williams - Battle Simulator");
+        setUpRoundView();
         frame.pack();
         Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
         frame.setMinimumSize(new Dimension(Math.min(900, screen.width), Math.min(640, screen.height)));
@@ -63,11 +71,31 @@ public class Session {
         frame.setVisible(true);
     }
 
+    private void setUpRoundView() {
+        if (panel == null) {
+            panel = new BattlefieldPanel();
+        }
+        panel.setRound(round);
+        panel.setEventLog(eventLog);
+        panel.setPlacementTeam(Troop.Team.teamA);
+        panel.setFitWholeBoard(false);
+        JPanel battlefieldView = panel.createView();
+        battlefieldView.setPreferredSize(new Dimension(WINDOW_WIDTH, BATTLEFIELD_HEIGHT));
+        purchasePanel = new TroopPurchasePanel(round, panel);
+        JPanel content = new JPanel(new BorderLayout());
+        content.add(battlefieldView, BorderLayout.CENTER);
+        content.add(purchasePanel, BorderLayout.SOUTH);
+        frame.setContentPane(content);
+        frame.revalidate();
+        frame.repaint();
+    }
+
     /*
      * Creates the round and allocates its board before placement begins.
      */
     private void startRound() {
-        round = new Round(teamA, teamB);
+        eventLog = new EventLogListener();
+        round = new Round(new Team("teamA"), new Team("teamB"));
         // A second listener alongside the budget one. Round fires once and
         // both react, without either knowing the other is registered.
         round.addTileEffectListener(eventLog);
@@ -83,6 +111,15 @@ public class Session {
         timer = new Timer(TICK_DURATION, e -> {
             round.update();
             panel.refresh();
+            if (round.getCurrentState() instanceof RoundOverState result) {
+                timer.stop();
+                purchasePanel.refreshState();
+                GameOverPanel prompt = new GameOverPanel(result, this::restart);
+                frame.setGlassPane(prompt);
+                prompt.setVisible(true);
+                frame.getRootPane().setDefaultButton(prompt.getRestartButton());
+                prompt.getRestartButton().requestFocusInWindow();
+            }
         });
         timer.start();
     }
