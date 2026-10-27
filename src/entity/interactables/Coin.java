@@ -3,7 +3,7 @@ package entity.interactables;
 import entity.troops.Troop;
 import java.util.Optional;
 
-// gold spawns on the battlefield. The first troop to reach it collects the
+// gold spawns on the battlefield. the first troop to reach it collects the
 // coin for their team.
 
 public class Coin extends TileEffect {
@@ -13,7 +13,7 @@ public class Coin extends TileEffect {
 
     /* ---- CONSTRUCTORS ---- */
     public Coin(int row, int column, int amount) {
-        // Gold is neutral until someone picks it up.
+        // gold is neutral until someone picks it up.
         super(row, column, null);
         this.amount = amount;
         collectedBy = null;
@@ -31,25 +31,28 @@ public class Coin extends TileEffect {
     /* ---- OVERRIDES ---- */
     @Override
     public Optional<TileEffectEvent> onEnter(Troop troop) {
+        // someone already took it this round
         if (collectedBy != null) {
-            return Optional.empty(); // someone already took it this round
+            return Optional.empty();
         }
 
         collectedBy = troop.getTeam();
 
-        /*
-         * The coin names its own payout rather than leaving a listener to work
-         * out what a coin is worth. BudgetListener just applies whatever number
-         * the event carries.
-         */
+        // the coin names its own payout, so the listener never has to work out
+        // what a coin is worth
         return Optional.of(TileEffectEvent.paying(
                 this, troop, troop.getTeam() + " collected " + amount + " gold", amount));
     }
 
-    // Unlike a Hill, a collected coin is spent and leaves the board.
+    // unlike a hill, a collected coin is spent and leaves the board.
     @Override
     public boolean isConsumed() {
         return collectedBy != null;
+    }
+
+    @Override
+    public <R> R accept(TileEffectVisitor<R> visitor) {
+        return visitor.visitCoin(this);
     }
 
 }

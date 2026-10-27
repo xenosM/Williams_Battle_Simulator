@@ -46,10 +46,8 @@ public class Round {
 
     private final Random random = new Random();
 
-    /*
-     * Round is the subject in the observer relationship: it holds the
-     * listeners and fires at them, but has no idea what any of them do.
-     */
+    // listeners that react when a tile effect fires. round holds them but
+    // does not know what any of them do.
     private final List<TileEffectListener> tileEffectListeners = new ArrayList<>();
 
     private GameState currentState;
@@ -62,8 +60,7 @@ public class Round {
         teamBCastle = new Castle(ROW_COUNT / 2, COLUMN_COUNT - 1, 100);
         placeCastles();
 
-        // Paying out collected gold is a reaction to an event, not part of
-        // resolving one, so it registers like any other listener would.
+        // paying out gold is a reaction, not part of resolving the effect
         addTileEffectListener(new BudgetListener(teamA, teamB));
     }
 
@@ -94,12 +91,8 @@ public class Round {
         tileEffectListeners.add(listener);
     }
 
-    /*
-     * Called once per troop, after it has finished moving. Whatever it is
-     * standing on gets a chance to fire; if it reports that something actually
-     * happened, every listener hears about it. Spent effects then leave the
-     * board.
-     */
+    // fires whatever the troop is standing on, tells the listeners if
+    // anything actually happened, then clears out spent effects
     public void applyTileEffects(Troop troop) {
         tileEffectBoard.at(troop.getRow(), troop.getColumn())
                 .flatMap(effect -> effect.onEnter(troop))
@@ -108,11 +101,8 @@ public class Round {
         tileEffectBoard.removeIf(TileEffect::isConsumed);
     }
 
-    /*
-     * Extra damage the cell under this troop is worth to it. Hills answer with
-     * their bonus for the team holding them; everything else answers zero, so
-     * the combat code never has to ask what it is standing on.
-     */
+    // extra damage the cell under this troop is worth. hills answer with
+    // their bonus, everything else answers zero.
     public int damageBonusAt(Troop troop) {
         return tileEffectBoard.at(troop.getRow(), troop.getColumn())
                 .map(effect -> effect.damageBonusFor(troop))
@@ -228,7 +218,7 @@ public class Round {
 
     /*---- PRIVATE METHODS ---- */
 
-    // The notify step. Every registered listener gets the same event.
+    // the notify step. every listener gets the same event.
     private void fireTileEffectTriggered(TileEffectEvent event) {
         for (TileEffectListener listener : tileEffectListeners) {
             listener.onTileEffectTriggered(event);

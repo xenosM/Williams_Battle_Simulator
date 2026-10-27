@@ -3,7 +3,7 @@ package entity.interactables;
 import entity.troops.Troop;
 import java.util.Optional;
 
-//hill gets genrerated on the map, then give damage bonus to the team that holds it.
+// hill gets generated on the map, then gives a damage bonus to the team that holds it.
 
 public class Hill extends TileEffect {
 
@@ -35,12 +35,8 @@ public class Hill extends TileEffect {
 
     /* ---- OVERRIDES ---- */
 
-    /*
-     * The bonus only applies to the team that claimed the hill, and only while
-     * one of their troops is standing on it. Nothing has to be undone when the
-     * troop leaves, because the bonus is read from the cell at the moment of
-     * the attack rather than written onto the troop.
-     */
+    // only the holding team gets the bonus, and only while standing here.
+    // read at the moment of the attack, so nothing is undone when it leaves.
     @Override
     public int damageBonusFor(Troop troop) {
         return (holder == troop.getTeam()) ? damageBonus : 0;
@@ -48,8 +44,9 @@ public class Hill extends TileEffect {
 
     @Override
     public Optional<TileEffectEvent> onEnter(Troop troop) {
+        // first team to arrive keeps it for the rest of the round
         if (holder != null) {
-            return Optional.empty(); // first team to arrive keeps it for the round
+            return Optional.empty();
         }
 
         holder = troop.getTeam();
@@ -61,6 +58,11 @@ public class Hill extends TileEffect {
     @Override
     public boolean isConsumed() {
         return false;
+    }
+
+    @Override
+    public <R> R accept(TileEffectVisitor<R> visitor) {
+        return visitor.visitHill(this);
     }
 
 }

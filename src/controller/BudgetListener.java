@@ -5,13 +5,10 @@ import entity.interactables.TileEffectEvent;
 import entity.interactables.TileEffectListener;
 import entity.troops.Troop;
 
-/*
- * Pays the troop's team whatever the event says it is owed.
- *
- * This listener never asks what kind of effect fired. A coin reports a payout
- * of 25, a hill and a trap report zero, and the arithmetic here is the same
- * either way - so a future effect that pays out needs no change to this class.
- */
+// pays the troop's team whatever the event says it is owed.
+// never asks what kind of effect fired: a coin reports 25, a hill and a trap
+// report zero, and the arithmetic is the same either way.
+
 public class BudgetListener implements TileEffectListener {
 
     /* ---- PRIVATE VARIABLES ---- */
