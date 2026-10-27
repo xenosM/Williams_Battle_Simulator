@@ -19,7 +19,7 @@ public record Stats(int baseHealth, int speed, int baseAttack, int atkSpeed, int
         return new Stats(baseHealth, speed, baseAttack, atkSpeed,3, 0, 0);
     }
 
-    // Healer: heals adjacent allies, no attack, no armour
+    // Healer: heals nearby allies, no attack or armour
     public static Stats healer(int baseHealth,int speed, int healAmount) {
         return new Stats(baseHealth, speed, 0, 0,1, 0, healAmount);
     }

@@ -35,6 +35,8 @@ the working directory, so running from `src/` leaves them blank.
 - Hover over a group to see its type, soldier count, and health.
 - Figures fit inside their own tile. Sprite scaling ignores transparent margins
   and preserves the image proportions. Team summaries stay visible when scrolling.
+- Each troop class uses its own team sprite. Healing highlights the healed group
+  and the priest's book. Tile effects report their latest event beneath the board.
 - Invalid purchases show a message and do not spend gold. Once each team has
   at least one group, click Start Battle. Buying and placement then close.
 
@@ -43,6 +45,7 @@ the working directory, so running from `src/` leaves them blank.
 After compiling the simulation, run these checks using the standard JDK:
 
 ```powershell
-javac -cp bin -d bin tests/TroopBuyingTest.java
+javac -cp bin -d bin tests/TroopBuyingTest.java tests/TeamIntegrationTest.java
 java -cp bin TroopBuyingTest
+java -cp bin TeamIntegrationTest
 ```

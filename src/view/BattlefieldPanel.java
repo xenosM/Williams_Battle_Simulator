@@ -1,5 +1,6 @@
 package view;
 
+import controller.EventLogListener;
 import controller.Round;
 import entity.Castle;
 import entity.Team;
@@ -8,6 +9,11 @@ import entity.interactables.Hill;
 import entity.interactables.TileEffect;
 import entity.interactables.Trap;
 import entity.troops.Troop;
+import entity.troops.melee.Cavalry;
+import entity.troops.melee.Infantry;
+import entity.troops.ranged.Archer;
+import entity.troops.support.Healer;
+import entity.troops.support.Priest;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -36,6 +42,7 @@ import javax.swing.BorderFactory;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JViewport;
+import javax.swing.JLabel;
 import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
@@ -46,8 +53,18 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     private static final int SIDEBAR_WIDTH = 148;
     private static final int MIN_TILE_SIZE = 30;
 
-    private final Image troopASprite = sprite("Troop_A");
-    private final Image troopBSprite = sprite("Troop_B");
+    private static final Color HEAL_GLOW_OUTER = new Color(255, 215, 20, 75);
+    private static final Color HEAL_GLOW_INNER = new Color(255, 235, 70, 120);
+    private static final Color HEAL_GLOW_CENTRE = new Color(255, 250, 150, 170);
+
+    private final Image infantryASprite = sprite("Infantry_A");
+    private final Image infantryBSprite = sprite("Infantry_B");
+    private final Image archerASprite = sprite("Archer_A");
+    private final Image archerBSprite = sprite("Archer_B");
+    private final Image cavalryASprite = sprite("Cavalry_A");
+    private final Image cavalryBSprite = sprite("Cavalry_B");
+    private final Image priestASprite = sprite("Priest_A");
+    private final Image priestBSprite = sprite("Priest_B");
     private final Image castleSprite = sprite("Castle");
     private final Image coinSprite = sprite("Coin");
     private final Image hillSprite = sprite("Hill");
@@ -59,6 +76,8 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     private int hoverColumn = -1;
     private boolean fitWholeBoard;
     private JPanel battlefieldView;
+    private EventLogListener eventLog;
+    private final JLabel latestEvent = new JLabel(" ");
 
     public BattlefieldPanel() {
         setBackground(SimulationTheme.BACKGROUND);
@@ -107,6 +126,10 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
         scrollPane.setBorder(BorderFactory.createLineBorder(SimulationTheme.BORDER));
         scrollPane.getViewport().setBackground(SimulationTheme.BACKGROUND);
         battlefieldView.add(scrollPane, BorderLayout.CENTER);
+        latestEvent.setFont(SimulationTheme.BODY);
+        latestEvent.setForeground(SimulationTheme.MUTED);
+        latestEvent.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
+        battlefieldView.add(latestEvent, BorderLayout.SOUTH);
         SwingUtilities.invokeLater(this::centreView);
         return battlefieldView;
     }
@@ -145,6 +168,7 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     }
 
     public void refresh() {
+        latestEvent.setText(eventLog == null || eventLog.getLatest().isEmpty() ? " " : eventLog.getLatest());
         if (battlefieldView != null) {
             battlefieldView.repaint();
         } else {
@@ -329,6 +353,9 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
         Color accent = troop.getTeam() == Troop.Team.teamA ? SimulationTheme.TEAM_A : SimulationTheme.TEAM_B;
         g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 55));
         g.fillRect(tile.x + 1, tile.y + 1, Math.max(1, tile.width - 2), Math.max(1, tile.height - 2));
+        if (troop.wasRecentlyHealed()) {
+            drawHealGlow(g, tile);
+        }
         // Every group shows its count. Wider tiles also show the troop's initial.
         String label = (tile.width >= 48 ? troop.getClass().getSimpleName().substring(0, 1) : "")
                 + troop.getGroupSize();
@@ -348,9 +375,11 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
             figureLeft += labelWidth + 2;
             figureWidth -= labelWidth + 2;
         }
-        drawImageFitted(g, troop.getTeam() == Troop.Team.teamA ? troopASprite : troopBSprite,
-                figureLeft + figureWidth / 2, tile.y + tile.height - inset,
-                Math.max(1, figureWidth), Math.max(1, tile.height - 2 * inset));
+        drawImageFitted(g, getTroopSprite(troop), figureLeft + figureWidth / 2,
+                tile.y + tile.height - inset, Math.max(1, figureWidth), Math.max(1, tile.height - 2 * inset));
+        if (troop instanceof Healer healer && healer.hasRecentlyHealed()) {
+            drawBookGlow(g, troop, tile, figureLeft, figureWidth);
+        }
 
         int labelY = labelBesideFigure ? tile.y + 1 : tile.y + tile.height - labelHeight - 1;
         Graphics2D badge = (Graphics2D) g.create();
@@ -360,6 +389,49 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
         badge.setColor(Color.WHITE);
         badge.drawString(label, tile.x + 3, labelY + metrics.getAscent());
         badge.dispose();
+    }
+
+    private Image getTroopSprite(Troop troop) {
+        boolean isTeamA = troop.getTeam() == Troop.Team.teamA;
+        if (troop instanceof Cavalry) {
+            return isTeamA ? cavalryASprite : cavalryBSprite;
+        } else if (troop instanceof Archer) {
+            return isTeamA ? archerASprite : archerBSprite;
+        } else if (troop instanceof Priest) {
+            return isTeamA ? priestASprite : priestBSprite;
+        } else if (troop instanceof Infantry) {
+            return isTeamA ? infantryASprite : infantryBSprite;
+        }
+        return isTeamA ? infantryASprite : infantryBSprite;
+    }
+
+    private void drawHealGlow(Graphics2D g, Rectangle tile) {
+        g.setColor(HEAL_GLOW_OUTER);
+        g.fillOval(tile.x + 1, tile.y + 1, Math.max(1, tile.width - 2), Math.max(1, tile.height - 2));
+        g.setColor(HEAL_GLOW_INNER);
+        g.fillOval(tile.x + 3, tile.y + 3, Math.max(1, tile.width - 6), Math.max(1, tile.height - 6));
+        g.setColor(HEAL_GLOW_CENTRE);
+        g.drawOval(tile.x + 2, tile.y + 2, Math.max(1, tile.width - 5), Math.max(1, tile.height - 5));
+    }
+
+    private void drawBookGlow(Graphics2D g, Troop troop, Rectangle tile, int figureLeft, int figureWidth) {
+        int size = Math.max(6, Math.min(tile.width, tile.height) / 2);
+        int centreX = figureLeft + (troop.getTeam() == Troop.Team.teamA ? figureWidth * 3 / 4 : figureWidth / 4);
+        int centreY = tile.y + tile.height * 3 / 5;
+        Graphics2D glow = (Graphics2D) g.create();
+        glow.clipRect(tile.x + 1, tile.y + 1, Math.max(1, tile.width - 2), Math.max(1, tile.height - 2));
+        glow.setColor(HEAL_GLOW_OUTER);
+        glow.fillOval(centreX - size / 2, centreY - size / 2, size, size);
+        glow.setColor(HEAL_GLOW_INNER);
+        glow.fillOval(centreX - size / 3, centreY - size / 3, Math.max(1, size * 2 / 3), Math.max(1, size * 2 / 3));
+        glow.setColor(HEAL_GLOW_CENTRE);
+        glow.fillOval(centreX - size / 6, centreY - size / 6, Math.max(1, size / 3), Math.max(1, size / 3));
+        glow.dispose();
+    }
+
+    public void setEventLog(EventLogListener eventLog) {
+        this.eventLog = eventLog;
+        refresh();
     }
 
     private void drawSidebar(Graphics2D g, int x, int y, int availableHeight, Team team, Castle castle,

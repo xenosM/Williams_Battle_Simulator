@@ -5,6 +5,8 @@ import entity.Positioned;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Predicate;
 
 /*
  * Every entity of one kind occupying cells on the grid. The Positioned bound
@@ -45,6 +47,25 @@ public class GridContents<T extends Positioned> {
             }
         }
         return true;
+    }
+
+    /*
+     * Whatever is held at this cell, if anything. Optional rather than a
+     * nullable return so the caller cannot forget the empty case, which is the
+     * common one on a mostly empty board.
+     */
+    public Optional<T> at(int row, int column) {
+        for (T item : contents) {
+            if (item.isAt(row, column)) {
+                return Optional.of(item);
+            }
+        }
+        return Optional.empty();
+    }
+
+    // Drops everything matching the test. The caller decides what "spent" means.
+    public void removeIf(Predicate<T> spent) {
+        contents.removeIf(spent);
     }
 
     public void clear() {

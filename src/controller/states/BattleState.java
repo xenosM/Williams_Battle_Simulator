@@ -30,6 +30,10 @@ public class BattleState implements GameState {
                 continue;   // killed earlier in this same sequence, so it skips its turn
             }
             moveTroop(round, troop);
+            round.applyTileEffects(troop); // whatever it landed on gets its turn
+            if (troop.isDestroyed()) {
+                continue; // a trap can kill it before it gets to act
+            }
             actIfInRange(round, troop);
         }
     }
@@ -42,7 +46,7 @@ public class BattleState implements GameState {
             return;
         }
         if (troop instanceof Attacker attacker) {
-            attacker.attack();
+            attacker.attack(round.damageBonusAt(attacker)); // high ground counts
         }
         if (troop instanceof Healer healer) {
             healer.heal();

@@ -24,6 +24,9 @@ public class Session {
     private Round round;
     private Timer timer;
 
+    // Survives between rounds so the log is not lost when a new Round starts.
+    private final EventLogListener eventLog = new EventLogListener();
+
     /* ---- CONSTRUCTORS ---- */
     public Session() {
         teamA = new Team("teamA");
@@ -44,6 +47,7 @@ public class Session {
     private void setUpWindow() {
         panel = new BattlefieldPanel();
         panel.setRound(round);
+        panel.setEventLog(eventLog);
         JPanel battlefieldView = panel.createView();
         battlefieldView.setPreferredSize(new Dimension(WINDOW_WIDTH, BATTLEFIELD_HEIGHT));
 
@@ -64,6 +68,9 @@ public class Session {
      */
     private void startRound() {
         round = new Round(teamA, teamB);
+        // A second listener alongside the budget one. Round fires once and
+        // both react, without either knowing the other is registered.
+        round.addTileEffectListener(eventLog);
         round.start();
         round.update(); // Allocate the board before showing the buying controls.
     }
