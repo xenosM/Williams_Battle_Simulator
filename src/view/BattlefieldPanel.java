@@ -13,6 +13,7 @@ import entity.troops.Troop;
 import entity.troops.melee.Cavalry;
 import entity.troops.melee.Infantry;
 import entity.troops.ranged.Archer;
+import entity.troops.support.Healer;
 import entity.troops.support.Priest;
 import java.awt.Color;
 import java.awt.Font;
@@ -49,6 +50,10 @@ public class BattlefieldPanel extends JPanel {
     private static final Color TEAM_A_ACCENT = new Color(60, 90, 190);
     private static final Color TEAM_B_ACCENT = new Color(190, 90, 30);
     private static final Color HOVER_COLOUR = new Color(255, 255, 150, 110);
+
+    private static final Color HEAL_GLOW_OUTER = new Color(255, 215, 20, 75);
+    private static final Color HEAL_GLOW_INNER = new Color(255, 235, 70, 120);
+    private static final Color HEAL_GLOW_CENTRE = new Color(255, 250, 150, 170);
 
     /* ---- PRIVATE VARIABLES ---- */
     private Image infantryASprite;
@@ -282,6 +287,10 @@ public class BattlefieldPanel extends JPanel {
         int x = troop.getColumn() * CELL_SIZE + offsetX;
         int y = troop.getRow() * CELL_SIZE + offsetY;
 
+        if (troop.wasRecentlyHealed()) {
+            drawHealGlow(g, x, y);
+        }
+
         Image sprite = getTroopSprite(troop);
 
         if (troop instanceof Cavalry) {
@@ -291,6 +300,48 @@ public class BattlefieldPanel extends JPanel {
         } else {
             g.drawImage(sprite, x - 12, y - 12, CELL_SIZE + 24, CELL_SIZE + 24, this);
         }
+
+        if (troop instanceof Healer healer && healer.hasRecentlyHealed()) {
+            drawBookGlow(g, troop, x, y);
+        }
+    }
+
+    private void drawHealGlow(Graphics g, int x, int y) {
+        Color oldColour = g.getColor();
+
+        g.setColor(HEAL_GLOW_OUTER);
+        g.fillOval(x - 9, y - 9, CELL_SIZE + 18, CELL_SIZE + 18);
+
+        g.setColor(HEAL_GLOW_INNER);
+        g.fillOval(x - 5, y - 5, CELL_SIZE + 10, CELL_SIZE + 10);
+
+        g.setColor(HEAL_GLOW_CENTRE);
+        g.drawOval(x - 3, y - 3, CELL_SIZE + 6, CELL_SIZE + 6);
+
+        g.setColor(oldColour);
+    }
+
+    private void drawBookGlow(Graphics g, Troop troop, int x, int y) {
+        Color oldColour = g.getColor();
+
+        int glowX;
+
+        if (troop.getTeam() == Troop.Team.teamA) {
+            glowX = x + 18;
+        } else {
+            glowX = x;
+        }
+
+        g.setColor(HEAL_GLOW_OUTER);
+        g.fillOval(glowX - 5, y + 10, 21, 21);
+
+        g.setColor(HEAL_GLOW_INNER);
+        g.fillOval(glowX - 2, y + 13, 15, 15);
+
+        g.setColor(HEAL_GLOW_CENTRE);
+        g.fillOval(glowX + 2, y + 17, 7, 7);
+
+        g.setColor(oldColour);
     }
 
     private Image getTroopSprite(Troop troop) {

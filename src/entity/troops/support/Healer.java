@@ -9,18 +9,24 @@ import entity.troops.Support;
  */
 public abstract class Healer extends Support {
 
+    private static final long HEAL_GLOW_DURATION = 1500;
 
     private Healable target;
+    private long lastHealTime;
     /* ---- CONSTRUCTORS ---- */
     public Healer(int row, int column, Stats stats, int initialGroupSize, Team team) {
         super(row, column, stats, initialGroupSize, team);
+        lastHealTime = 0;
     }
 
     /* ---- PUBLIC METHODS ---- */
     public void heal() {
-
-        System.out.println(target + "healed");
         this.target.beHealed(multipliedHealAmount());
+        lastHealTime = System.currentTimeMillis();
+    }
+
+    public boolean hasRecentlyHealed() {
+        return System.currentTimeMillis() - lastHealTime < HEAL_GLOW_DURATION;
     }
 
     /* ---- PRIVATE METHODS ---- */

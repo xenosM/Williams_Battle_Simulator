@@ -20,6 +20,7 @@ public abstract class Attacker extends Troop implements Healable {
     @Override
     public void beHealed(int healAmount) {
         groupHealth = Math.min(groupHealth + healAmount, getMaxHealth());
+        markHealed();
     }
 
     /*
