@@ -11,11 +11,16 @@ public abstract class Troop implements Damageable {
         teamB
     }
 
+    /* ---- STATIC VARIABLES ---- */
+    private static final long HEAL_GLOW_DURATION = 1500;
+
     /* ---- PRIVATE VARIABLES ---- */
     // Position
     private int row;
     private int column;
     private final Team team;
+
+    private long lastHealedTime;
 
     /* ---- PROTECTED VARIABLES ---- */
     protected final Stats stats; // base stats for this troop type, never change
@@ -30,6 +35,7 @@ public abstract class Troop implements Damageable {
         this.stats = stats;
         this.groupHealth = getMaxHealth(); // default groupHealth is maxed out
         this.team = team;
+        this.lastHealedTime = 0;
     }
 
     /* ---- PUBLIC METHODS ---- */
@@ -52,6 +58,14 @@ public abstract class Troop implements Damageable {
     @Override
     public boolean isAt(int row, int column) {
         return this.row == row && this.column == column;
+    }
+
+    public void markHealed() {
+        lastHealedTime = System.currentTimeMillis();
+    }
+
+    public boolean wasRecentlyHealed() {
+        return System.currentTimeMillis() - lastHealedTime < HEAL_GLOW_DURATION;
     }
 
     /* ---- GETTER METHODS ---- */
