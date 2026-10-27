@@ -175,6 +175,40 @@ public class Round {
         setCurrentState(new BattleState());
     }
 
+    public boolean isGameOver() {
+        return currentState instanceof RoundOverState;
+    }
+
+    /* Only the battle phase checks defeat; empty armies are normal during buying. */
+    public boolean checkGameOver() {
+        if (!(currentState instanceof BattleState)) {
+            return isGameOver();
+        }
+        boolean castleA = teamACastle.isDestroyed();
+        boolean castleB = teamBCastle.isDestroyed();
+        boolean armyA = teamA.getArmy().stream().noneMatch(troop -> !troop.isDestroyed());
+        boolean armyB = teamB.getArmy().stream().noneMatch(troop -> !troop.isDestroyed());
+        boolean defeatedA = castleA || armyA;
+        boolean defeatedB = castleB || armyB;
+        if (!defeatedA && !defeatedB) {
+            return false;
+        }
+
+        if (defeatedA && defeatedB) {
+            setCurrentState(new RoundOverState(RoundOverState.Outcome.DRAW,
+                    "Both teams have lost their castle or their entire army."));
+        } else {
+            String team = defeatedA ? "Team A" : "Team B";
+            boolean castle = defeatedA ? castleA : castleB;
+            boolean army = defeatedA ? armyA : armyB;
+            String reason = castle && army ? team + " lost its castle and its entire army."
+                    : castle ? team + "'s castle was destroyed." : team + "'s entire army was defeated.";
+            setCurrentState(new RoundOverState(defeatedA ? RoundOverState.Outcome.TEAM_B_WINS
+                    : RoundOverState.Outcome.TEAM_A_WINS, reason));
+        }
+        return true;
+    }
+
     public boolean isBlocked(int row, int column) {
         return !castleBoard.isWithinBounds(row, column)
                 || !castleBoard.isCellFree(row, column)

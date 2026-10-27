@@ -39,13 +39,19 @@ the working directory, so running from `src/` leaves them blank.
   and the priest's book. Tile effects report their latest event beneath the board.
 - Invalid purchases show a message and do not spend gold. Once each team has
   at least one group, click Start Battle. Buying and placement then close.
+- A team loses when its castle is destroyed or every group in its army is dead.
+  Battle stops immediately and shows the winner and reason. If both teams are
+  defeated when checked, the result is a draw.
+- Click Restart on the game-over prompt to return to buying in the same window,
+  with fresh castles, empty armies, $500 per team, and a new battlefield.
 
 ## Checking purchases
 
 After compiling the simulation, run these checks using the standard JDK:
 
 ```powershell
-javac -cp bin -d bin tests/TroopBuyingTest.java tests/TeamIntegrationTest.java
+javac -cp bin -d bin tests/TroopBuyingTest.java tests/TeamIntegrationTest.java tests/GameOverTest.java
 java -cp bin TroopBuyingTest
 java -cp bin TeamIntegrationTest
+java -cp bin GameOverTest
 ```

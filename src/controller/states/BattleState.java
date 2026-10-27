@@ -17,7 +17,9 @@ public class BattleState implements GameState {
 
     @Override
     public void update(Round round) {
-        runSequence(round);
+        if (!round.checkGameOver()) {
+            runSequence(round);
+        }
     }
 
     @Override
@@ -31,10 +33,16 @@ public class BattleState implements GameState {
             }
             moveTroop(round, troop);
             round.applyTileEffects(troop); // whatever it landed on gets its turn
+            if (round.checkGameOver()) {
+                return;
+            }
             if (troop.isDestroyed()) {
                 continue; // a trap can kill it before it gets to act
             }
             actIfInRange(round, troop);
+            if (round.checkGameOver()) {
+                return;
+            }
         }
     }
 
