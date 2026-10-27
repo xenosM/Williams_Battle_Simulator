@@ -109,6 +109,14 @@ public class Round {
                 .orElse(0);
     }
 
+    // extra attack range the cell under this troop is worth. hills answer for
+    // ranged troops only, everything else answers zero.
+    public int rangeBonusAt(Troop troop) {
+        return tileEffectBoard.at(troop.getRow(), troop.getColumn())
+                .map(effect -> effect.rangeBonusFor(troop))
+                .orElse(0);
+    }
+
     public boolean isCellFree(int row, int column) {
         return !isBlocked(row, column) && tileEffectBoard.isCellFree(row, column);
     }

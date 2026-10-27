@@ -16,10 +16,11 @@ class TileEffectDescriptionVisitor implements TileEffectVisitor<String> {
     /* ---- OVERRIDES ---- */
     @Override
     public String visitHill(Hill hill) {
+        String bonuses = "+" + hill.getDamageBonus() + " dmg, +" + hill.getRangeBonus() + " range for ranged";
         if (!hill.isClaimed()) {
-            return "Hill | unclaimed | +" + hill.getDamageBonus() + " dmg to whoever takes it";
+            return "Hill | unclaimed | " + bonuses + " to whoever takes it";
         }
-        return "Hill | held by " + teamName(hill.getHolder()) + " | +" + hill.getDamageBonus() + " dmg";
+        return "Hill | held by " + teamName(hill.getHolder()) + " | " + bonuses;
     }
 
     @Override

@@ -50,9 +50,10 @@ the working directory, so running from `src/` leaves them blank.
 After compiling the simulation, run these checks using the standard JDK:
 
 ```powershell
-javac -cp bin -d bin tests/TroopBuyingTest.java tests/TeamIntegrationTest.java tests/GameOverTest.java tests/TileEffectVisitorTest.java
+javac -cp bin -d bin tests/TroopBuyingTest.java tests/TeamIntegrationTest.java tests/GameOverTest.java tests/TileEffectVisitorTest.java tests/HillRangeTest.java
 java -cp bin TroopBuyingTest
 java -cp bin TeamIntegrationTest
 java -cp bin GameOverTest
 java -cp bin TileEffectVisitorTest
+java -cp bin HillRangeTest
 ```

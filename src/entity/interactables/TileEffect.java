@@ -44,6 +44,12 @@ public abstract class TileEffect implements Positioned {
         return 0;
     }
 
+    // extra attack range this effect gives a troop standing on it.
+    // same deal as the damage bonus: default zero, only hill overrides.
+    public int rangeBonusFor(Troop troop) {
+        return 0;
+    }
+
     /* ---- ABSTRACT METHODS ---- */
 
     // called when a troop moves onto this cell.
