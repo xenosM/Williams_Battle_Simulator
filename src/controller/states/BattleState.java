@@ -50,7 +50,7 @@ public class BattleState implements GameState {
         Positioned target = troop.getTarget();
 
         //Does nothing if there is no target or target is out of range
-        if (target == null || !isInRange(troop, target)) {
+        if (target == null || !isInRange(round, troop, target)) {
             return;
         }
         if (troop instanceof Attacker attacker) {
@@ -100,7 +100,7 @@ public class BattleState implements GameState {
     private void moveTroop(Round round, Troop troop) {
         for (int step = 0; step < troop.getSpeed(); ++step) {
             Positioned target = findTarget(round, troop);
-            if (target == null || isInRange(troop, target)) {
+            if (target == null || isInRange(round, troop, target)) {
                 return;
             }
             if (!stepToward(round, troop, target)) {
@@ -109,8 +109,10 @@ public class BattleState implements GameState {
         }
     }
 
-    private boolean isInRange(Troop troop, Positioned target) {
-        return distance(troop, target) <= troop.getRange();
+    // high ground lets ranged troops shoot further, so range is read from the
+    // board rather than from the troop alone
+    private boolean isInRange(Round round, Troop troop, Positioned target) {
+        return distance(troop, target) <= troop.getRange() + round.rangeBonusAt(troop);
     }
 
     // Updates the closest living enemy or enemy castle for attacker or closest living ally for supporters

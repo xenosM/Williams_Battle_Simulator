@@ -38,29 +38,31 @@ public abstract class TileEffect implements Positioned {
         return this.row == row && this.column == column;
     }
 
-    /*
-     * Extra damage this effect grants to a troop standing on it. Most effects
-     * grant none, so the default is zero and only Hill overrides it. Doing it
-     * this way keeps the combat code free of checks for which effect it is.
-     */
+    // extra damage this effect gives a troop standing on it.
+    // only hill overrides it, so combat never has to check what is underfoot.
     public int damageBonusFor(Troop troop) {
+        return 0;
+    }
+
+    // extra attack range this effect gives a troop standing on it.
+    // same deal as the damage bonus: default zero, only hill overrides.
+    public int rangeBonusFor(Troop troop) {
         return 0;
     }
 
     /* ---- ABSTRACT METHODS ---- */
 
-    /*
-     * Called when a troop moves onto this cell.
-     *
-     * Returns an event describing what happened, or empty when nothing did -
-     * a spent trap, a coin already taken, a troop walking over its own team's
-     * trap. Returning the event rather than acting directly is what lets Round
-     * notify its listeners only on real changes.
-     */
+    // called when a troop moves onto this cell.
+    // returns an event if something happened, empty if nothing did: a coin
+    // already taken, a hill already claimed, a troop on its own trap.
     public abstract Optional<TileEffectEvent> onEnter(Troop troop);
 
     // true once the effect is spent and should be removed
     // hills always return false, traps return true after firing.
     public abstract boolean isConsumed();
+
+    // hands this effect to the visitor so the visitor's matching method runs.
+    // each subclass calls its own one, which is what replaces instanceof.
+    public abstract <R> R accept(TileEffectVisitor<R> visitor);
 
 }

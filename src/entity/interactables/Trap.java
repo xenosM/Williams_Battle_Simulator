@@ -3,10 +3,10 @@ package entity.interactables;
 import entity.troops.Troop;
 import java.util.Optional;
 
-// Damages the first enemy troop to enter the cell, then is spent.
+// damages the first enemy troop to enter the cell, then is spent.
+// traps spawn at random for now but carry an owning team from the start, so a
+// placement stage can create them the same way later.
 
-// Traps are spawned at random for now, but they carry an owning team from the
-// start so that a placement stage can create them the same way later
 public class Trap extends TileEffect {
 
     /* ---- PRIVATE VARIABLES ---- */
@@ -25,6 +25,10 @@ public class Trap extends TileEffect {
         return damage;
     }
 
+    public boolean isTriggered() {
+        return isTriggered;
+    }
+
     /* ---- OVERRIDES ---- */
     @Override
     public Optional<TileEffectEvent> onEnter(Troop troop) {
@@ -32,7 +36,7 @@ public class Trap extends TileEffect {
             return Optional.empty();
         }
 
-        // Friendly troops walk over their own team's traps safely.
+        // friendly troops walk over their own team's traps safely
         if (troop.getTeam() == getOwner()) {
             return Optional.empty();
         }
@@ -47,6 +51,11 @@ public class Trap extends TileEffect {
     @Override
     public boolean isConsumed() {
         return isTriggered;
+    }
+
+    @Override
+    public <R> R accept(TileEffectVisitor<R> visitor) {
+        return visitor.visitTrap(this);
     }
 
 }

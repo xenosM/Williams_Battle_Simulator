@@ -4,10 +4,7 @@ import controller.EventLogListener;
 import controller.Round;
 import entity.Castle;
 import entity.Team;
-import entity.interactables.Coin;
-import entity.interactables.Hill;
 import entity.interactables.TileEffect;
-import entity.interactables.Trap;
 import entity.troops.Troop;
 import entity.troops.melee.Cavalry;
 import entity.troops.melee.Infantry;
@@ -69,6 +66,10 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     private final Image coinSprite = sprite("Coin");
     private final Image hillSprite = sprite("Hill");
     private final Image trapSprite = sprite("Trap");
+    // one visitor per job, both reused for every effect drawn or hovered
+    private final TileEffectSpriteVisitor spriteVisitor =
+            new TileEffectSpriteVisitor(hillSprite, coinSprite, trapSprite);
+    private final TileEffectDescriptionVisitor descriptionVisitor = new TileEffectDescriptionVisitor();
     private Round round;
     private Troop.Team placementTeam = Troop.Team.teamA;
     private BiConsumer<Integer, Integer> placementHandler = (row, column) -> { };
@@ -319,8 +320,9 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     }
 
     private void drawTileEffect(Graphics2D g, Rectangle board, TileEffect effect) {
-        Image image = effect instanceof Hill ? hillSprite : effect instanceof Coin ? coinSprite
-                : effect instanceof Trap ? trapSprite : null;
+        // the effect picks its own sprite through the visitor, so no type
+        // checks here
+        Image image = effect.accept(spriteVisitor);
         if (image != null) {
             drawSprite(g, board, effect.getRow(), effect.getColumn(), image);
         }
@@ -503,6 +505,15 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
                     + (troop.getTeam() == Troop.Team.teamA ? "Team A" : "Team B")
                     + " | Soldiers: " + troop.getGroupSize() + " | HP: " + troop.getGroupHealth()
                     + "/" + troop.getMaxHealth();
+        }
+        // nothing standing here, so report the tile effect if there is one
+        final int hoverRowFinal = row;
+        final int hoverColumnFinal = column;
+        TileEffect effect = round.getTileEffects().stream()
+                .filter(tileEffect -> tileEffect.isAt(hoverRowFinal, hoverColumnFinal))
+                .findFirst().orElse(null);
+        if (effect != null) {
+            return effect.accept(descriptionVisitor);
         }
         return "Row " + (row + 1) + ", column " + (column + 1);
     }
