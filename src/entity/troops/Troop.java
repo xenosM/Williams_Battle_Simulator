@@ -21,6 +21,7 @@ public abstract class Troop implements Damageable {
     private final Team team;
 
     private long lastHealedTime;
+    private long deathTime;
 
     /* ---- PROTECTED VARIABLES ---- */
     protected final Stats stats; // base stats for this troop type, never change
@@ -36,6 +37,7 @@ public abstract class Troop implements Damageable {
         this.groupHealth = getMaxHealth(); // default groupHealth is maxed out
         this.team = team;
         this.lastHealedTime = 0;
+        this.deathTime = 0;
     }
 
     /* ---- PUBLIC METHODS ---- */
@@ -46,8 +48,14 @@ public abstract class Troop implements Damageable {
     @Override
     public void takeDamage(int dmg) {
         // Damage is reduced in proportion to the troop's armour
+        boolean wasAlive = groupHealth > 0;
+
         int reducedDamage = dmg * (100 - stats.armour()) / 100;
         groupHealth = Math.max(groupHealth - reducedDamage, 0);
+
+        if (wasAlive && groupHealth == 0) {
+            deathTime = System.currentTimeMillis();
+        }
     }
 
     @Override
@@ -105,6 +113,10 @@ public abstract class Troop implements Damageable {
 
     public Stats getStats() {
         return stats;
+    }
+
+    public long getDeathTime() {
+        return deathTime;
     }
 
     public abstract Positioned getTarget();
