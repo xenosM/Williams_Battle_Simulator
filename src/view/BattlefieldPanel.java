@@ -11,6 +11,7 @@ import entity.troops.melee.Infantry;
 import entity.troops.ranged.Archer;
 import entity.troops.support.Healer;
 import entity.troops.support.Priest;
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -36,6 +37,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
+import javax.swing.GrayFilter;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JViewport;
@@ -43,12 +45,16 @@ import javax.swing.JLabel;
 import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 
 public class BattlefieldPanel extends JPanel implements Scrollable {
     private static final int PADDING = 8;
     private static final int SIDEBAR_GAP = 18;
     private static final int SIDEBAR_WIDTH = 148;
     private static final int MIN_TILE_SIZE = 30;
+
+    private static final long DEATH_FULL_OPACITY_DURATION = 1000;
+    private static final long DEATH_ANIMATION_DURATION = 4000;
 
     private static final Color HEAL_GLOW_OUTER = new Color(255, 215, 20, 75);
     private static final Color HEAL_GLOW_INNER = new Color(255, 235, 70, 120);
@@ -62,6 +68,16 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     private final Image cavalryBSprite = sprite("Cavalry_B");
     private final Image priestASprite = sprite("Priest_A");
     private final Image priestBSprite = sprite("Priest_B");
+
+    private final Image infantryADeadSprite = GrayFilter.createDisabledImage(infantryASprite);
+    private final Image infantryBDeadSprite = GrayFilter.createDisabledImage(infantryBSprite);
+    private final Image archerADeadSprite = GrayFilter.createDisabledImage(archerASprite);
+    private final Image archerBDeadSprite = GrayFilter.createDisabledImage(archerBSprite);
+    private final Image cavalryADeadSprite = GrayFilter.createDisabledImage(cavalryASprite);
+    private final Image cavalryBDeadSprite = GrayFilter.createDisabledImage(cavalryBSprite);
+    private final Image priestADeadSprite = GrayFilter.createDisabledImage(priestASprite);
+    private final Image priestBDeadSprite = GrayFilter.createDisabledImage(priestBSprite);
+
     private final Image castleSprite = sprite("Castle");
     private final Image coinSprite = sprite("Coin");
     private final Image hillSprite = sprite("Hill");
@@ -79,10 +95,19 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     private JPanel battlefieldView;
     private EventLogListener eventLog;
     private final JLabel latestEvent = new JLabel(" ");
+    private final Timer animationTimer;
 
     public BattlefieldPanel() {
         setBackground(SimulationTheme.BACKGROUND);
         setToolTipText("");
+
+        animationTimer = new Timer(100, e -> {
+            if (hasActiveDeathAnimation()) {
+                repaint();
+            }
+        });
+        animationTimer.start();
+
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -351,22 +376,44 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     }
 
     private void drawTroop(Graphics2D g, Rectangle board, Troop troop) {
-        Rectangle tile = getTileBounds(troop.getRow(), troop.getColumn());
-        Color accent = troop.getTeam() == Troop.Team.teamA ? SimulationTheme.TEAM_A : SimulationTheme.TEAM_B;
-        g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 55));
-        g.fillRect(tile.x + 1, tile.y + 1, Math.max(1, tile.width - 2), Math.max(1, tile.height - 2));
-        if (troop.wasRecentlyHealed()) {
-            drawHealGlow(g, tile);
+        boolean dead = troop.isDestroyed();
+
+        if (dead && isDeathAnimationFinished(troop)) {
+            return;
         }
+
+        Graphics2D troopGraphics = (Graphics2D) g.create();
+
+        if (dead) {
+            troopGraphics.setComposite(
+                    AlphaComposite.getInstance(AlphaComposite.SRC_OVER, getDeathOpacity(troop)));
+        }
+
+        Rectangle tile = getTileBounds(troop.getRow(), troop.getColumn());
+
+        Color accent;
+        if (dead) {
+            accent = new Color(105, 105, 105);
+        } else {
+            accent = troop.getTeam() == Troop.Team.teamA ? SimulationTheme.TEAM_A : SimulationTheme.TEAM_B;
+        }
+
+        troopGraphics.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 55));
+        troopGraphics.fillRect(tile.x + 1, tile.y + 1, Math.max(1, tile.width - 2), Math.max(1, tile.height - 2));
+
+        if (!dead && troop.wasRecentlyHealed()) {
+            drawHealGlow(troopGraphics, tile);
+        }
+
         // Every group shows its count. Wider tiles also show the troop's initial.
         String label = (tile.width >= 48 ? troop.getClass().getSimpleName().substring(0, 1) : "")
                 + troop.getGroupSize();
         int fontSize = Math.min(10, Math.max(6, Math.min(tile.width, tile.height) / 3));
-        g.setFont(new Font("SansSerif", Font.BOLD, fontSize));
-        while (g.getFontMetrics().stringWidth(label) > tile.width - 4 && fontSize > 6) {
-            g.setFont(new Font("SansSerif", Font.BOLD, --fontSize));
+        troopGraphics.setFont(new Font("SansSerif", Font.BOLD, fontSize));
+        while (troopGraphics.getFontMetrics().stringWidth(label) > tile.width - 4 && fontSize > 6) {
+            troopGraphics.setFont(new Font("SansSerif", Font.BOLD, --fontSize));
         }
-        FontMetrics metrics = g.getFontMetrics();
+        FontMetrics metrics = troopGraphics.getFontMetrics();
         int labelWidth = Math.min(tile.width - 2, metrics.stringWidth(label) + 4);
         int labelHeight = Math.min(tile.height - 2, metrics.getHeight());
         int inset = Math.max(1, Math.min(tile.width, tile.height) / 15);
@@ -377,20 +424,53 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
             figureLeft += labelWidth + 2;
             figureWidth -= labelWidth + 2;
         }
-        drawImageFitted(g, getTroopSprite(troop), figureLeft + figureWidth / 2,
+
+        Image troopSprite = dead ? getDeadTroopSprite(troop) : getTroopSprite(troop);
+
+        drawImageFitted(troopGraphics, troopSprite, figureLeft + figureWidth / 2,
                 tile.y + tile.height - inset, Math.max(1, figureWidth), Math.max(1, tile.height - 2 * inset));
-        if (troop instanceof Healer healer && healer.hasRecentlyHealed()) {
-            drawBookGlow(g, troop, tile, figureLeft, figureWidth);
+
+        if (!dead && troop instanceof Healer healer && healer.hasRecentlyHealed()) {
+            drawBookGlow(troopGraphics, troop, tile, figureLeft, figureWidth);
         }
 
         int labelY = labelBesideFigure ? tile.y + 1 : tile.y + tile.height - labelHeight - 1;
-        Graphics2D badge = (Graphics2D) g.create();
+        Graphics2D badge = (Graphics2D) troopGraphics.create();
         badge.clipRect(tile.x + 1, tile.y + 1, Math.max(1, tile.width - 2), Math.max(1, tile.height - 2));
         badge.setColor(accent);
         badge.fillRect(tile.x + 1, labelY, labelWidth, labelHeight);
         badge.setColor(Color.WHITE);
         badge.drawString(label, tile.x + 3, labelY + metrics.getAscent());
         badge.dispose();
+
+        troopGraphics.dispose();
+    }
+
+    private float getDeathOpacity(Troop troop) {
+        long timeSinceDeath = System.currentTimeMillis() - troop.getDeathTime();
+
+        if (timeSinceDeath <= DEATH_FULL_OPACITY_DURATION) {
+            return 1.0f;
+        }
+
+        long fadeTime = timeSinceDeath - DEATH_FULL_OPACITY_DURATION;
+        long fadeDuration = DEATH_ANIMATION_DURATION - DEATH_FULL_OPACITY_DURATION;
+
+        return Math.max(0.0f, 1.0f - (float) fadeTime / fadeDuration);
+    }
+
+    private boolean isDeathAnimationFinished(Troop troop) {
+        return troop.isDestroyed()
+                && System.currentTimeMillis() - troop.getDeathTime() >= DEATH_ANIMATION_DURATION;
+    }
+
+    private boolean hasActiveDeathAnimation() {
+        if (round == null) {
+            return false;
+        }
+
+        return Stream.concat(round.getTeamA().getArmy().stream(), round.getTeamB().getArmy().stream())
+                .anyMatch(troop -> troop.isDestroyed() && !isDeathAnimationFinished(troop));
     }
 
     private Image getTroopSprite(Troop troop) {
@@ -405,6 +485,22 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
             return isTeamA ? infantryASprite : infantryBSprite;
         }
         return isTeamA ? infantryASprite : infantryBSprite;
+    }
+
+    private Image getDeadTroopSprite(Troop troop) {
+        boolean isTeamA = troop.getTeam() == Troop.Team.teamA;
+
+        if (troop instanceof Cavalry) {
+            return isTeamA ? cavalryADeadSprite : cavalryBDeadSprite;
+        } else if (troop instanceof Archer) {
+            return isTeamA ? archerADeadSprite : archerBDeadSprite;
+        } else if (troop instanceof Priest) {
+            return isTeamA ? priestADeadSprite : priestBDeadSprite;
+        } else if (troop instanceof Infantry) {
+            return isTeamA ? infantryADeadSprite : infantryBDeadSprite;
+        }
+
+        return isTeamA ? infantryADeadSprite : infantryBDeadSprite;
     }
 
     private void drawHealGlow(Graphics2D g, Rectangle tile) {
@@ -499,7 +595,9 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
             return null;
         }
         Troop troop = Stream.concat(round.getTeamA().getArmy().stream(), round.getTeamB().getArmy().stream())
-                .filter(group -> group.isAt(row, column)).findFirst().orElse(null);
+                .filter(group -> group.isAt(row, column))
+                .filter(group -> !group.isDestroyed() || !isDeathAnimationFinished(group))
+                .findFirst().orElse(null);
         if (troop != null) {
             return troop.getClass().getSimpleName() + " | "
                     + (troop.getTeam() == Troop.Team.teamA ? "Team A" : "Team B")
