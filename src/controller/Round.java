@@ -23,6 +23,7 @@ public class Round {
     /* VARIABLES FOR GRID */
     private static final int ROW_COUNT = 30;
     private static final int COLUMN_COUNT = 30;
+    private static final int CASTLE_SIZE = 3;
 
     /* VARIABLES FOR TILE EFFECT */
     private static final int HILL_COUNT = 4;
@@ -56,8 +57,10 @@ public class Round {
     public Round(Team teamA, Team teamB) {
         this.teamA = teamA;
         this.teamB = teamB;
-        teamACastle = new Castle(ROW_COUNT / 2, 0, 100);
-        teamBCastle = new Castle(ROW_COUNT / 2, COLUMN_COUNT - 1, 100);
+        int castleRow = ROW_COUNT / 2 - CASTLE_SIZE / 2;
+
+        teamACastle = new Castle(castleRow, 0, 100, CASTLE_SIZE);
+        teamBCastle = new Castle(castleRow, COLUMN_COUNT - CASTLE_SIZE, 100, CASTLE_SIZE);
         placeCastles();
 
         // paying out gold is a reaction, not part of resolving the effect

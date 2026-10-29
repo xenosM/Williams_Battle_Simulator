@@ -526,18 +526,30 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
             Castle castle,
             Color accent) {
 
-        Rectangle tile =
+        Rectangle firstTile =
                 getTileBounds(
                         castle.getRow(),
                         castle.getColumn());
 
+        Rectangle lastTile =
+                getTileBounds(
+                        castle.getRow() + castle.getSize() - 1,
+                        castle.getColumn() + castle.getSize() - 1);
+
+        Rectangle castleBounds =
+                new Rectangle(
+                        firstTile.x,
+                        firstTile.y,
+                        lastTile.x + lastTile.width - firstTile.x,
+                        lastTile.y + lastTile.height - firstTile.y);
+
         g.setColor(accent);
 
         g.fillRect(
-                tile.x + 1,
-                tile.y + 1,
-                Math.max(1, tile.width - 2),
-                Math.max(1, tile.height - 2));
+                castleBounds.x + 1,
+                castleBounds.y + 1,
+                Math.max(1, castleBounds.width - 2),
+                Math.max(1, castleBounds.height - 2));
 
         Image sprite;
 
@@ -553,12 +565,21 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
             sprite = castleSprite;
         }
 
-        drawSprite(
+        int inset =
+                Math.max(
+                        1,
+                        Math.min(
+                                        castleBounds.width,
+                                        castleBounds.height)
+                                / 15);
+
+        drawImageFitted(
                 g,
-                board,
-                castle.getRow(),
-                castle.getColumn(),
-                sprite);
+                sprite,
+                castleBounds.x + castleBounds.width / 2,
+                castleBounds.y + castleBounds.height - inset,
+                Math.max(1, castleBounds.width - 2 * inset),
+                Math.max(1, castleBounds.height - 2 * inset));
     }
 
     private void drawTroop(
