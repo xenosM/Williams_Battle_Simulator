@@ -33,12 +33,15 @@ the working directory, so running from `src/` leaves them blank.
   One purchase creates one group, represented by one icon. Its badge always
   shows the number of surviving soldiers. Wider tiles also show the type (I/A/C/P).
 - Hover over a group to see its type, soldier count, and health.
+- Before battle, right-click a group to move it or remove it for a full refund.
+  When moving, click an empty tile in the same team's half; press Esc to cancel.
 - Figures fit inside their own tile. Sprite scaling ignores transparent margins
   and preserves the image proportions. Team summaries stay visible when scrolling.
 - Each troop class uses its own team sprite. Healing highlights the healed group
   and the priest's book. Tile effects report their latest event beneath the board.
 - Invalid purchases show a message and do not spend gold. Once each team has
-  at least one group, click Start Battle. Buying and placement then close.
+  at least one attacking group (Infantry, Archer or Cavalry), click Start Battle.
+  Priests cannot attack. Buying, moving and removing groups then close.
 - A team loses when its castle is destroyed or every group in its army is dead.
   Battle stops immediately and shows the winner and reason. If both teams are
   defeated when checked, the result is a draw.
@@ -50,10 +53,11 @@ the working directory, so running from `src/` leaves them blank.
 After compiling the simulation, run these checks using the standard JDK:
 
 ```powershell
-javac -cp bin -d bin tests/TroopBuyingTest.java tests/TeamIntegrationTest.java tests/GameOverTest.java tests/TileEffectVisitorTest.java tests/HillRangeTest.java
+javac -cp bin -d bin tests/TroopBuyingTest.java tests/TeamIntegrationTest.java tests/GameOverTest.java tests/TileEffectVisitorTest.java tests/HillRangeTest.java tests/PlacementEditingTest.java
 java -cp bin TroopBuyingTest
 java -cp bin TeamIntegrationTest
 java -cp bin GameOverTest
 java -cp bin TileEffectVisitorTest
 java -cp bin HillRangeTest
+java -cp bin PlacementEditingTest
 ```

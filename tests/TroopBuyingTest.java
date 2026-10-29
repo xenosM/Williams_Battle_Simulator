@@ -21,6 +21,7 @@ public class TroopBuyingTest {
         checkPurchases();
         checkRejections();
         checkBattleTransition();
+        checkPriestOnlyArmies();
         checkPriestHealing();
         SwingUtilities.invokeAndWait(TroopBuyingTest::checkResizedPlacement);
         SwingUtilities.invokeAndWait(TroopBuyingTest::checkScrollableBoard);
@@ -95,6 +96,38 @@ public class TroopBuyingTest {
         round.startBattle();
         check(!round.isPlacingTroops(), "Start Battle did not change phase");
         rejectsWithoutCharge(round, () -> round.buyTroop(Troop.Team.teamA, TroopType.INFANTRY, 1, 0, 0));
+    }
+
+    private static void checkPriestOnlyArmies() throws Exception {
+        for (TroopType attackerType : new TroopType[] {
+                TroopType.INFANTRY, TroopType.ARCHER, TroopType.CAVALRY }) {
+            Round round = placementRound();
+            for (Troop.Team owner : Troop.Team.values()) {
+                int[] cell = emptyCell(round, owner);
+                round.buyTroop(owner, TroopType.PRIEST, 3, cell[0], cell[1]);
+            }
+            check(!round.canStartBattle(), "Priest-only armies must not be ready");
+            rejectsWithoutCharge(round, round::startBattle);
+            check(round.isPlacingTroops(), "Rejected start must stay in placement");
+
+            int[] left = emptyCell(round, Troop.Team.teamA);
+            Troop attacker = round.buyTroop(Troop.Team.teamA, attackerType, 1, left[0], left[1]);
+            check(!round.canStartBattle(), "Team B still needs an attacker");
+            rejectsWithoutCharge(round, round::startBattle);
+
+            int[] right = emptyCell(round, Troop.Team.teamB);
+            round.buyTroop(Troop.Team.teamB, attackerType, 1, right[0], right[1]);
+            check(round.canStartBattle(), "Mixed armies with attackers should be ready");
+
+            attacker.takeDamage(10_000);
+            check(!round.canStartBattle(), "A destroyed attacker must not make Team A ready");
+            rejectsWithoutCharge(round, round::startBattle);
+
+            left = emptyCell(round, Troop.Team.teamA);
+            round.buyTroop(Troop.Team.teamA, attackerType, 1, left[0], left[1]);
+            round.startBattle();
+            check(!round.isPlacingTroops(), "Both teams with living attackers should start");
+        }
     }
 
     private static void checkPriestHealing() throws Exception {

@@ -117,8 +117,10 @@ public class GameOverTest {
         check(army.getTeamBCastle().getHealth() == castleHealth, "Another group acted after victory");
 
         Round castle = placementRound();
-        castle.getTeamA().addTroop(new Cavalry(15, 28, 50, Troop.Team.teamA));
-        castle.getTeamB().addTroop(new Infantry(15, 1, 1, Troop.Team.teamB));
+        castle.getTeamA().addTroop(new Cavalry(castle.getTeamBCastle().getRow() - 1,
+                castle.getTeamBCastle().getColumn(), 50, Troop.Team.teamA));
+        castle.getTeamB().addTroop(new Infantry(castle.getTeamACastle().getRow() - 1,
+                castle.getTeamACastle().getColumn(), 1, Troop.Team.teamB));
         castle.startBattle();
         castleHealth = castle.getTeamACastle().getHealth();
         castle.update();
@@ -145,6 +147,14 @@ public class GameOverTest {
         check(defender != null, "Need an adjacent trap defender");
         (loser == Troop.Team.teamA ? round.getTeamA() : round.getTeamB()).addTroop(intruder);
         (loser == Troop.Team.teamA ? round.getTeamB() : round.getTeamA()).addTroop(defender);
+        // The defending army also needs an attacker; keep it far from the trap.
+        int farRow = trap.getRow() < round.getRowCount() / 2 ? round.getRowCount() - 1 : 0;
+        for (int column = 0; column < round.getColumnCount(); column++) {
+            if (round.isCellFree(farRow, column)) {
+                round.getOwnTeam(defender).addTroop(new Infantry(farRow, column, 1, trap.getOwner()));
+                break;
+            }
+        }
         round.startBattle();
         round.update();
         check(round.isGameOver() && intruder.isDestroyed(), "A trap killing the last group should end the match");

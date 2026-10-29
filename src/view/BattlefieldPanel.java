@@ -15,6 +15,7 @@ import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -96,6 +97,8 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     private Round round;
     private Troop.Team placementTeam = Troop.Team.teamA;
     private BiConsumer<Integer, Integer> placementHandler = (row, column) -> { };
+    private BiConsumer<Troop, MouseEvent> troopMenuHandler = (troop, event) -> { };
+    private Troop movingTroop;
     private int hoverRow = -1;
     private int hoverColumn = -1;
     private boolean fitWholeBoard;
@@ -116,6 +119,16 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
         animationTimer.start();
 
         addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                showTroopMenu(e);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                showTroopMenu(e);
+            }
+
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (round != null && round.isPlacingTroops() && SwingUtilities.isLeftMouseButton(e)) {
@@ -146,6 +159,28 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
                 clearHover();
             }
         });
+    }
+
+    private void showTroopMenu(MouseEvent e) {
+        if (!e.isPopupTrigger() || round == null || !round.isPlacingTroops()
+                || !getGridBounds().contains(e.getPoint())) {
+            return;
+        }
+        int row = rowFor(e.getY());
+        int column = columnFor(e.getX());
+        Stream.concat(round.getTeamA().getArmy().stream(), round.getTeamB().getArmy().stream())
+                .filter(troop -> !troop.isDestroyed() && troop.isAt(row, column))
+                .findFirst().ifPresent(troop -> troopMenuHandler.accept(troop, e));
+    }
+
+    public void setTroopMenuHandler(BiConsumer<Troop, MouseEvent> handler) {
+        troopMenuHandler = handler;
+    }
+
+    public void setMovingTroop(Troop troop) {
+        movingTroop = troop;
+        setCursor(Cursor.getPredefinedCursor(troop == null ? Cursor.DEFAULT_CURSOR : Cursor.CROSSHAIR_CURSOR));
+        repaint();
     }
 
     /* Keep team information fixed while the battlefield can scroll. */
@@ -362,6 +397,14 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
                 .sorted(Comparator.comparingInt(Troop::getRow))
                 .forEach(troop -> drawTroop(g, board, troop));
 
+        if (movingTroop != null && round.isPlacingTroops()) {
+            Rectangle tile = getTileBounds(movingTroop.getRow(), movingTroop.getColumn());
+            g.setColor(SimulationTheme.TEAM_A);
+            g.setStroke(new BasicStroke(3f));
+            g.drawRect(tile.x + 2, tile.y + 2, Math.max(1, tile.width - 4), Math.max(1, tile.height - 4));
+            g.setStroke(new BasicStroke(1f));
+        }
+
         round.render();
         g.dispose();
     }
@@ -439,7 +482,8 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
 
         boolean valid =
                 ownHalf
-                        && round.isCellFree(hoverRow, hoverColumn);
+                        && (round.isCellFree(hoverRow, hoverColumn)
+                                || movingTroop != null && movingTroop.isAt(hoverRow, hoverColumn));
 
         g.setColor(
                 valid

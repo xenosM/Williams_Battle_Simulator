@@ -3,10 +3,13 @@ package controller;
 import controller.states.*;
 import entity.*;
 import entity.interactables.*;
+import entity.troops.Attacker;
 import entity.troops.Troop;
 import entity.troops.TroopType;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 /*
@@ -42,6 +45,8 @@ public class Round {
 
     private final Team teamA;
     private final Team teamB;
+    // Keep the amount actually paid so removing a group refunds it exactly once.
+    private final Map<Troop, Integer> purchaseCosts = new HashMap<>();
     private final Castle teamACastle;
     private final Castle teamBCastle;
 
@@ -137,15 +142,7 @@ public class Round {
         if (owner == null || type == null) {
             throw new InvalidPlacementException("Select a team and troop type first.");
         }
-        if (!castleBoard.isWithinBounds(row, column)) {
-            throw new InvalidPlacementException("Choose a tile inside the battlefield.");
-        }
-        if (ownerOfHalf(column) != owner) {
-            throw new InvalidPlacementException("Place Team A on the left half and Team B on the right half.");
-        }
-        if (!isCellFree(row, column)) {
-            throw new InvalidPlacementException("That tile is occupied. Choose an empty tile.");
-        }
+        validatePlacement(owner, row, column);
 
         int cost;
         try {
@@ -162,16 +159,63 @@ public class Round {
         Troop troop = type.createTroop(row, column, groupSize, owner);
         team.spendBudget(cost);
         team.addTroop(troop);
+        purchaseCosts.put(troop, cost);
         return troop;
     }
 
+    public void movePlacedTroop(Troop troop, int row, int column) throws InvalidPlacementException {
+        validatePlacedTroop(troop);
+        if (troop.isAt(row, column)) {
+            return;
+        }
+        validatePlacement(troop.getTeam(), row, column);
+        troop.setPosition(row, column);
+    }
+
+    public int removePlacedTroop(Troop troop) throws InvalidPlacementException {
+        validatePlacedTroop(troop);
+        int refund = purchaseCosts.remove(troop);
+        Team team = getOwnTeam(troop);
+        team.getArmy().remove(troop);
+        team.addBudget(refund);
+        return refund;
+    }
+
+    private void validatePlacedTroop(Troop troop) throws InvalidPlacementException {
+        if (!isPlacingTroops()) {
+            throw new InvalidPlacementException("Groups can only be moved or removed before battle.");
+        }
+        if (troop == null || troop.isDestroyed() || !purchaseCosts.containsKey(troop)
+                || !getOwnTeam(troop).getArmy().contains(troop)) {
+            throw new InvalidPlacementException("Choose a placed group from this battle.");
+        }
+    }
+
+    private void validatePlacement(Troop.Team owner, int row, int column) throws InvalidPlacementException {
+        if (!castleBoard.isWithinBounds(row, column)) {
+            throw new InvalidPlacementException("Choose a tile inside the battlefield.");
+        }
+        if (ownerOfHalf(column) != owner) {
+            throw new InvalidPlacementException("Place Team A on the left half and Team B on the right half.");
+        }
+        if (!isCellFree(row, column)) {
+            throw new InvalidPlacementException("That tile is occupied. Choose an empty tile.");
+        }
+    }
+
     public boolean canStartBattle() {
-        return isPlacingTroops() && !teamA.getArmy().isEmpty() && !teamB.getArmy().isEmpty();
+        return isPlacingTroops() && hasLivingAttacker(teamA) && hasLivingAttacker(teamB);
+    }
+
+    private boolean hasLivingAttacker(Team team) {
+        return team.getArmy().stream()
+                .anyMatch(troop -> troop instanceof Attacker && !troop.isDestroyed());
     }
 
     public void startBattle() throws InvalidPlacementException {
         if (!canStartBattle()) {
-            throw new InvalidPlacementException("Place at least one group for each team before starting battle.");
+            throw new InvalidPlacementException(
+                    "Priests cannot attack. Each team needs an Infantry, Archer or Cavalry group to start.");
         }
         setCurrentState(new BattleState());
     }
