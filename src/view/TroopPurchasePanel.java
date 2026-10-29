@@ -12,6 +12,9 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.MouseEvent;
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -19,6 +22,9 @@ import javax.swing.JCheckBox;
 import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.KeyStroke;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.event.DocumentEvent;
@@ -32,9 +38,11 @@ public class TroopPurchasePanel extends JPanel {
     private final JComboBox<TroopType> troopSelector = new JComboBox<>(TroopType.values());
     private final JSpinner groupSize = new JSpinner(new SpinnerNumberModel(1, 1, Integer.MAX_VALUE, 1));
     private final JLabel quote = new JLabel();
-    private final JLabel message = new JLabel("Select a group, then click an empty tile in that team's half.");
+    private final JLabel message = new JLabel(
+            "Click an empty tile to buy a group. Right-click a group to move or remove it.");
     private final JButton startBattle = new JButton("Start Battle");
     private final JFormattedTextField sizeInput;
+    private Troop movingTroop;
 
     public TroopPurchasePanel(Round round, BattlefieldPanel battlefield) {
         this.round = round;
@@ -86,10 +94,14 @@ public class TroopPurchasePanel extends JPanel {
         add(feedback, BorderLayout.SOUTH);
 
         teamSelector.addActionListener(e -> {
+            cancelMove();
             battlefield.setPlacementTeam(selectedTeam());
             refreshQuote();
         });
-        troopSelector.addActionListener(e -> refreshQuote());
+        troopSelector.addActionListener(e -> {
+            cancelMove();
+            refreshQuote();
+        });
         sizeInput.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) { refreshQuote(); }
@@ -102,6 +114,14 @@ public class TroopPurchasePanel extends JPanel {
         });
         startBattle.addActionListener(e -> beginBattle());
         battlefield.setPlacementHandler(this::buyAt);
+        battlefield.setTroopMenuHandler(this::showTroopMenu);
+        getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("ESCAPE"), "cancelMove");
+        getActionMap().put("cancelMove", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                cancelMove();
+            }
+        });
         refreshQuote();
     }
 
@@ -141,11 +161,17 @@ public class TroopPurchasePanel extends JPanel {
 
     private void buyAt(int row, int column) {
         try {
-            int size = enteredGroupSize();
-            TroopType type = selectedType();
-            round.buyTroop(selectedTeam(), type, size, row, column);
-            showMessage("Bought " + type.getDisplayName() + " group of " + size
-                    + " for $" + type.getTotalCost(size) + ". Click another tile to buy again.", false);
+            if (movingTroop != null) {
+                round.movePlacedTroop(movingTroop, row, column);
+                cancelMove();
+                showMessage("Group moved. Right-click a group to move or remove it.", false);
+            } else {
+                int size = enteredGroupSize();
+                TroopType type = selectedType();
+                round.buyTroop(selectedTeam(), type, size, row, column);
+                showMessage("Bought " + type.getDisplayName() + " group of " + size
+                        + " for $" + type.getTotalCost(size) + ". Right-click to move or remove it.", false);
+            }
         } catch (InvalidPlacementException | IllegalArgumentException e) {
             showMessage(e.getMessage(), true);
         }
@@ -153,7 +179,43 @@ public class TroopPurchasePanel extends JPanel {
         battlefield.refresh();
     }
 
+    private void showTroopMenu(Troop troop, MouseEvent event) {
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem move = new JMenuItem("Move group");
+        move.addActionListener(e -> {
+            teamSelector.setSelectedIndex(troop.getTeam() == Troop.Team.teamA ? 0 : 1);
+            movingTroop = troop;
+            battlefield.setMovingTroop(troop);
+            showMessage("Click an empty tile in this team's half to move the group. Esc cancels.", false);
+        });
+        JMenuItem remove = new JMenuItem("Remove group (full refund)");
+        remove.addActionListener(e -> {
+            try {
+                int refund = round.removePlacedTroop(troop);
+                cancelMove();
+                showMessage("Group removed. Refunded $" + refund + " to "
+                        + (troop.getTeam() == Troop.Team.teamA ? "Team A." : "Team B."), false);
+            } catch (InvalidPlacementException error) {
+                showMessage(error.getMessage(), true);
+            }
+            refreshQuote();
+            battlefield.refresh();
+        });
+        menu.add(move);
+        menu.add(remove);
+        menu.show(event.getComponent(), event.getX(), event.getY());
+    }
+
+    private void cancelMove() {
+        if (movingTroop != null) {
+            movingTroop = null;
+            battlefield.setMovingTroop(null);
+            showMessage("Move cancelled. Click an empty tile to buy, or right-click a group to edit.", false);
+        }
+    }
+
     private void beginBattle() {
+        cancelMove();
         try {
             round.startBattle();
             showMessage("Battle in progress. Buying and placement are closed.", false);
@@ -176,7 +238,10 @@ public class TroopPurchasePanel extends JPanel {
         teamSelector.setEnabled(placing);
         troopSelector.setEnabled(placing);
         groupSize.setEnabled(placing);
-        startBattle.setEnabled(round.canStartBattle());
+        startBattle.setEnabled(placing);
+        startBattle.setToolTipText(placing && !round.canStartBattle()
+                ? "Each team needs an Infantry, Archer or Cavalry group. Priests only heal."
+                : null);
         if (!placing) {
             quote.setText("Buying closed");
             return;
