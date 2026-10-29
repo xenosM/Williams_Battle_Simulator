@@ -1,69 +1,22 @@
 package view;
 
-public class ArmyHealthSummary {
-
-    private int healthy;
-    private int wounded;
-    private int critical;
-    private int dead;
-    private int totalHealth;
-    private int troopCount;
-
-    public void addHealthy(int health) {
-        healthy++;
-        addHealth(health);
+/* Immutable results can safely pass from the background worker to Swing. */
+public record ArmyHealthSummary(int healthy, int wounded, int critical, int dead,
+                                long totalHealth, long maxHealth, int soldiers) {
+    public static ArmyHealthSummary empty() {
+        return new ArmyHealthSummary(0, 0, 0, 0, 0, 0, 0);
     }
 
-    public void addWounded(int health) {
-        wounded++;
-        addHealth(health);
+    public int livingGroups() {
+        return healthy + wounded + critical;
     }
 
-    public void addCritical(int health) {
-        critical++;
-        addHealth(health);
+    public int groupCount() {
+        return livingGroups() + dead;
     }
 
-    public void addDead() {
-        dead++;
-        troopCount++;
-    }
-
-    private void addHealth(int health) {
-        totalHealth += health;
-        troopCount++;
-    }
-
-    public void combine(ArmyHealthSummary other) {
-        healthy += other.healthy;
-        wounded += other.wounded;
-        critical += other.critical;
-        dead += other.dead;
-        totalHealth += other.totalHealth;
-        troopCount += other.troopCount;
-    }
-
-    public int getHealthy() {
-        return healthy;
-    }
-
-    public int getWounded() {
-        return wounded;
-    }
-
-    public int getCritical() {
-        return critical;
-    }
-
-    public int getDead() {
-        return dead;
-    }
-
-    public double getAverageHealth() {
-        if (troopCount == 0) {
-            return 0;
-        }
-
-        return (double) totalHealth / troopCount;
+    // Defeated groups retain their starting maximum HP in the denominator.
+    public double healthPercent() {
+        return maxHealth == 0 ? 0 : 100.0 * totalHealth / maxHealth;
     }
 }

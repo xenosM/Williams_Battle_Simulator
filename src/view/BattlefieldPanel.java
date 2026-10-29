@@ -34,6 +34,7 @@ import java.awt.event.MouseMotionAdapter;
 import java.io.File;
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
@@ -106,6 +107,13 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     private EventLogListener eventLog;
     private final JLabel latestEvent = new JLabel(" ");
     private final Timer animationTimer;
+    private ArmyHealthSummary teamAHealth = ArmyHealthSummary.empty();
+    private ArmyHealthSummary teamBHealth = ArmyHealthSummary.empty();
+    private final ArmyHealthMonitor healthMonitor = new ArmyHealthMonitor(summaries -> {
+        teamAHealth = summaries.teamA();
+        teamBHealth = summaries.teamB();
+        repaintView();
+    });
 
     public BattlefieldPanel() {
         setBackground(SimulationTheme.BACKGROUND);
@@ -221,7 +229,10 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
         };
 
         card.setOpaque(false);
-        card.setPreferredSize(new Dimension(SIDEBAR_WIDTH, 323));
+        card.setPreferredSize(new Dimension(SIDEBAR_WIDTH, 443));
+        card.setToolTipText("<html>Health is remaining HP / starting HP, including defeated groups.<br>"
+                + "Healthy: above 70%; wounded: 30-70%; critical: below 30%; defeated: 0 HP.<br>"
+                + "Health categories count groups, not individual soldiers.</html>");
 
         JPanel column = new JPanel(new BorderLayout());
         column.setOpaque(false);
@@ -251,6 +262,11 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
                         ? " "
                         : eventLog.getLatest());
 
+        if (round != null) healthMonitor.request(round.getTeamA(), round.getTeamB());
+        repaintView();
+    }
+
+    private void repaintView() {
         if (battlefieldView != null) {
             battlefieldView.repaint();
         } else {
@@ -1018,7 +1034,7 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
         int height =
                 Math.min(
                         availableHeight,
-                        320);
+                        440);
 
         g.setColor(
                 new Color(
@@ -1096,25 +1112,12 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
                 x + width - 16,
                 y + 125);
 
-        long groups =
-                team.getArmy()
-                        .stream()
-                        .filter(
-                                troop ->
-                                        !troop.isDestroyed())
-                        .count();
-
-        int soldiers =
-                team.getArmy()
-                        .stream()
-                        .mapToInt(
-                                Troop::getGroupSize)
-                        .sum();
+        ArmyHealthSummary health = team == round.getTeamA() ? teamAHealth : teamBHealth;
 
         sidebarStat(
                 g,
                 "Groups",
-                Long.toString(groups),
+                Integer.toString(health.livingGroups()),
                 x,
                 y + 153,
                 width);
@@ -1122,7 +1125,7 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
         sidebarStat(
                 g,
                 "Soldiers",
-                Integer.toString(soldiers),
+                Integer.toString(health.soldiers()),
                 x,
                 y + 182,
                 width);
@@ -1138,7 +1141,7 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
                 y + 211,
                 width);
 
-        if (height >= 310) {
+        if (height >= 420) {
             g.setColor(SimulationTheme.BORDER);
 
             g.drawLine(
@@ -1152,34 +1155,20 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
 
             centred(
                     g,
-                    team == round.getTeamA()
-                            ? "LEFT HALF"
-                            : "RIGHT HALF",
+                    "ARMY HEALTH",
                     x,
                     width,
                     y + 259);
 
-            g.setFont(
-                    new Font(
-                            "SansSerif",
-                            Font.PLAIN,
-                            11));
-
+            sidebarStat(g, "Health", health.groupCount() == 0 ? "-"
+                    : String.format(Locale.ROOT, "%.0f%%", health.healthPercent()), x, y + 284, width);
+            sidebarStat(g, "Healthy", Integer.toString(health.healthy()), x, y + 313, width);
+            sidebarStat(g, "Wounded", Integer.toString(health.wounded()), x, y + 342, width);
+            sidebarStat(g, "Critical", Integer.toString(health.critical()), x, y + 371, width);
+            sidebarStat(g, "Defeated", Integer.toString(health.dead()), x, y + 400, width);
+            g.setFont(SimulationTheme.LABEL);
             g.setColor(SimulationTheme.MUTED);
-
-            centred(
-                    g,
-                    "I / A / C / P",
-                    x,
-                    width,
-                    y + 283);
-
-            centred(
-                    g,
-                    "Hover for group details",
-                    x,
-                    width,
-                    y + 301);
+            centred(g, "Counts are groups", x, width, y + 425);
         }
     }
 
@@ -1376,7 +1365,11 @@ public class BattlefieldPanel extends JPanel implements Scrollable {
     }
 
     public void setRound(Round round) {
+        healthMonitor.reset();
+        teamAHealth = ArmyHealthSummary.empty();
+        teamBHealth = ArmyHealthSummary.empty();
         this.round = round;
+        refresh();
     }
 
     public void setPlacementHandler(

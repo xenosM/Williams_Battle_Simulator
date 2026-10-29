@@ -39,6 +39,10 @@ the working directory, so running from `src/` leaves them blank.
   and preserves the image proportions. Team summaries stay visible when scrolling.
 - Each troop class uses its own team sprite. Healing highlights the healed group
   and the priest's book. Tile effects report their latest event beneath the board.
+- Army health updates in each team panel. Healthy means above 70% of a group's
+  starting HP; wounded is 30-70%; critical is below 30%; defeated is zero HP.
+  These categories count groups. Overall health is remaining HP / starting HP
+  across the army, including defeated groups. An empty army shows a dash.
 - Invalid purchases show a message and do not spend gold. Once each team has
   at least one attacking group (Infantry, Archer or Cavalry), click Start Battle.
   Priests cannot attack. Buying, moving and removing groups then close.
@@ -48,16 +52,41 @@ the working directory, so running from `src/` leaves them blank.
 - Click Restart on the game-over prompt to return to buying in the same window,
   with fresh castles, empty armies, $500 per team, and a new battlefield.
 
-## Checking purchases
+## Army health processing
+
+The display copies each group's health, maximum health and surviving soldier
+count into an immutable `GroupHealthSnapshot` on Swing's event thread. Combat
+and movement continue sequentially on that thread.
+
+`ArmyHealthMonitor` uses a `SwingWorker` to collect those snapshots with
+`parallelStream()`. `ArmyHealthCollector` counts health categories and sums HP
+and soldiers in one pass. Each stream partition gets a separate accumulator;
+the combiner adds their counts and totals, and the finisher returns an immutable
+`ArmyHealthSummary`. No worker changes troops, Swing components or shared counters.
+The collector is unordered, but is not marked concurrent or identity-finish.
+
+Swing applies the results on its event thread. Only one health worker runs at a
+time; newer requests replace a waiting snapshot. Older results are ignored after
+another refresh or a restart, so they cannot overwrite the latest army.
+
+Parallel streams use Java's common fork/join pool. For these small armies,
+sequential aggregation may be faster; this demonstrates safe parallel collection
+rather than promising a speed increase. The timing experiment below compares the
+same snapshots and verifies equal results. It excludes snapshot creation, worker
+scheduling and drawing, so it is not a measure of frame rate or total update time.
+
+## Checks
 
 After compiling the simulation, run these checks using the standard JDK:
 
 ```powershell
-javac -cp bin -d bin tests/TroopBuyingTest.java tests/TeamIntegrationTest.java tests/GameOverTest.java tests/TileEffectVisitorTest.java tests/HillRangeTest.java tests/PlacementEditingTest.java
+javac -cp bin -d bin (Get-ChildItem tests -Filter *.java).FullName
 java -cp bin TroopBuyingTest
 java -cp bin TeamIntegrationTest
 java -cp bin GameOverTest
 java -cp bin TileEffectVisitorTest
 java -cp bin HillRangeTest
 java -cp bin PlacementEditingTest
+java -cp bin ArmyHealthTest
+java -cp bin ArmyHealthBenchmark
 ```
